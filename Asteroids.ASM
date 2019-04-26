@@ -15,11 +15,6 @@ BODY ENDS
 .const
 SCREEN_WIDTH equ 800
 SCREEN_HEIGHT equ 600
-
-IDM_TEST equ 1
-IDM_HELLO equ 2
-IDM_GOODBYE equ 3
-IDM_EXIT equ 4
         
 WM_FINISH equ WM_USER+100h
 
@@ -32,7 +27,7 @@ asteroid3BmpId equ 104
 BLACK_COLOR equ 0000000h
 WHITE_COLOR equ 0ffffffh
 
-PROJECTILE_VELOCITY equ 30
+PROJECTILE_VELOCITY equ 10
 
 
 CREF_TRANSPARENT  EQU 0FF00FFh
@@ -45,6 +40,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   hInstance     dd ?
   hIcon         dd ?
   hBmp          dd ?
+  hFont         dd ?
   memDC2        dd 0 
   x		          dd 0
   trasp		      dd 0
@@ -55,10 +51,10 @@ CREF_TRANSPARENT2 EQU 0FF0000h
 
   ;shipSprites   POINT {0, 0}, {36, 0}, {72, 0}, {108, 0}
   shipSpritesIndex  dd 2
-  ship BODY {{10, 10}, {10, 10}, {0, 0}}
-
+  ship BODY {{10, 10}, {0, 0}, {0, 0}}
+  shipMaxVelocity POINT {30, 30}
   shipProjectiles BODY 30 dup ({{-1, 2}, {3, 4}, {5, 6}})
-  ThreadID dd 0
+  UpdateThreadID dd 0
 
   shipBmp         dd ?
   space_backgroundBmp dd ?
@@ -76,7 +72,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   error_string db "Error loading image",0
   strEqualNegativeOne db "Not equal to negative one",0
   buffer db 300 dup(?)
-  header_format db "%d",0
+  header_format db "P1: x:%d y:%d",0
 
   EventStop BOOL FALSE
 ; #########################################################################
@@ -86,9 +82,6 @@ CREF_TRANSPARENT2 EQU 0FF0000h
 start:
       invoke GetModuleHandle, NULL
       mov hInstance, eax
-      jmp l1
-	tes db 	'Alo PD ',0
-l1:
       
       invoke LoadBitmap,hInstance, shipBmpId
       mov shipBmp, eax
@@ -109,9 +102,9 @@ l1:
       invoke LoadBitmap,hInstance, asteroid3BmpId
       mov asteroid3Bmp, eax
 
-      ;invoke LoadBitmap,hInstance, sweep
-      ;mov hBmp2, eax
-
+      ; Retrieve a handle to the variable stock font.  
+      invoke GetStockObject, DEVICE_DEFAULT_FONT
+      mov hFont, eax 
       
       invoke GetCommandLine
       mov CommandLine, eax
@@ -211,6 +204,108 @@ WinMain endp
 
 ; #########################################################################
 
+UpdateThread PROC Param:DWORD
+    invoke Sleep, 1000/60
+    mov esi, -50
+
+    mov ecx, ship.velocity.x
+    mov eax, -1
+    imul shipMaxVelocity.x
+    .if SDWORD PTR ecx > shipMaxVelocity.x
+        m2m ship.velocity.x, shipMaxVelocity.x
+    .elseif SDWORD PTR ecx < SDWORD PTR eax
+        m2m ship.velocity.x, eax
+    .endif
+
+    mov ecx, ship.velocity.y
+    mov eax, -1
+    imul shipMaxVelocity.x
+    .if SDWORD PTR ecx > shipMaxVelocity.y
+        m2m ship.velocity.y, shipMaxVelocity.y
+    .elseif SDWORD PTR ecx < SDWORD PTR eax
+        m2m ship.velocity.y, eax
+    .endif
+
+    mov eax, ship.velocity.x
+    add ship.position.x, eax
+    mov eax, ship.velocity.y
+    add ship.position.y, eax
+
+    mov ebx, ship.position.x
+    add ebx, 36
+    mov ecx, ship.position.x
+    ;add ecx, 36
+    .if SDWORD PTR ecx >= SCREEN_WIDTH
+        ;mov eax, -1
+        ;imul ship.velocity.x
+
+        ;mov ship.velocity.x, eax
+
+        mov ship.position.x, -36
+    .elseif SDWORD PTR ebx <= 0
+        ;mov eax, -1
+        ;imul ship.velocity.x
+
+        ;mov ship.velocity.x, eax
+        mov ship.position.x, SCREEN_WIDTH
+    .endif
+
+    mov ebx, ship.position.y
+    add ebx, 36
+    mov ecx, ship.position.y
+    ;add ecx, 36
+    .if SDWORD PTR ecx >= SCREEN_HEIGHT
+        ;mov eax, -1
+        ;imul ship.velocity.y
+
+        ;mov ship.velocity.y, eax
+        mov ship.position.y, -36
+    .elseif SDWORD PTR ebx <= 0
+        ;mov eax, -1
+        ;imul ship.velocity.y
+
+        ;mov ship.velocity.y, eax
+        mov ship.position.y, SCREEN_HEIGHT
+    .endif
+
+    mov edi, 0
+    .WHILE shipProjectiles[edi].position.x != -1
+        mov eax, shipProjectiles[edi].velocity.x
+        add shipProjectiles[edi].position.x, eax
+
+        mov eax, shipProjectiles[edi].velocity.y
+        add shipProjectiles[edi].position.y, eax
+
+        .if shipProjectiles[edi].position.x > SCREEN_WIDTH+50
+            jmp clean_projectile
+        .elseif shipProjectiles[edi].position.x < SDWORD PTR esi
+            jmp clean_projectile
+        .elseif shipProjectiles[edi].position.y > SCREEN_HEIGHT+50
+            jmp clean_projectile
+        .elseif shipProjectiles[edi].position.y < SDWORD PTR esi
+            jmp clean_projectile
+        .else 
+            jmp end_of_loop
+        .endif
+
+    clean_projectile:
+        mov shipProjectiles[edi].position.x, -1
+        mov shipProjectiles[edi].position.y, -1
+        mov shipProjectiles[edi].velocity.x, -1
+        mov shipProjectiles[edi].velocity.y, -1
+        mov shipProjectiles[edi].acceleration.x, -1
+        mov shipProjectiles[edi].acceleration.y, -1
+
+    end_of_loop:
+        add edi, 24
+    .ENDW
+
+
+    invoke InvalidateRect,hWnd,NULL,TRUE
+    jmp UpdateThread
+    ret
+UpdateThread ENDP
+
 WndProc proc hWin   :DWORD,
              uMsg   :DWORD,
              wParam :DWORD,
@@ -227,24 +322,26 @@ WndProc proc hWin   :DWORD,
 
     .if uMsg == WM_COMMAND
     ;======== menu commands ========
-		mov eax,wParam
-		.IF ax==IDM_TEST
-			invoke MessageBox,NULL,ADDR Test_string,OFFSET AppName,MB_OK
-		.ELSE
-			invoke DestroyWindow,hWnd
-		.ENDIF    
+		
     .elseif uMsg == WM_CREATE
 	  	mov posicao.x,200
 		mov posicao.y,0
 		
-		invoke CreateEvent,NULL,FALSE,FALSE,NULL
-		mov    hEventStart,eax
+		;invoke CreateEvent,NULL,FALSE,FALSE,NULL
+		;mov    hEventStart,eax
 		
-		mov    eax,OFFSET ThreadProc
-		invoke CreateThread,NULL,NULL,eax,\
+		;mov    eax,OFFSET ThreadProc
+		;invoke CreateThread,NULL,NULL,eax,\
+		;                    NULL,NORMAL_PRIORITY_CLASS,\
+		;                     ADDR ThreadID
+
+		;mov    hThread,eax
+
+        mov    eax, offset UpdateThread
+        invoke CreateThread,NULL,NULL, eax,\
 		                    NULL,NORMAL_PRIORITY_CLASS,\
-		                     ADDR ThreadID
-		mov    hThread,eax
+		                     ADDR UpdateThreadID
+
 
 		
     .elseif uMsg == WM_SIZE
@@ -316,17 +413,21 @@ WndProc proc hWin   :DWORD,
         .if wParam == VK_SPACE
             mov edi, 0
             .WHILE shipProjectiles[edi].position.x != -1 ; Find an empty slot in the array
-                ;invoke wsprintfA, ADDR buffer, ADDR header_format, eax
-                ;invoke MessageBox, NULL, ADDR buffer, ADDR szDisplayName, MB_OK
                 add edi, 24
             .ENDW
 
-            m2m shipProjectiles[edi].position.x, ship.position.x
-            m2m shipProjectiles[edi].position.y, ship.position.y
+            
             
             mov esi, PROJECTILE_VELOCITY
 
             .if shipSpritesIndex == 0
+                mov eax, ship.position.x
+                add eax, 17
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 5
+                mov shipProjectiles[edi].position.y, eax
+
                 mov eax, -2
                 imul eax, PROJECTILE_VELOCITY
 
@@ -337,6 +438,12 @@ WndProc proc hWin   :DWORD,
                 ;invoke wsprintfA, ADDR buffer, ADDR header_format, eax
                 ;invoke MessageBox, NULL, ADDR buffer, ADDR szDisplayName, MB_OK
             .elseif shipSpritesIndex == 1
+                mov eax, ship.position.x
+                add eax, 12
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 5
+                mov shipProjectiles[edi].position.y, eax
                 mov eax, -2
                 imul esi
 
@@ -346,6 +453,12 @@ WndProc proc hWin   :DWORD,
                 imul esi
                 mov shipProjectiles[edi].velocity.x, eax
             .elseif shipSpritesIndex == 2
+                mov eax, ship.position.x
+                add eax, 9
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 8
+                mov shipProjectiles[edi].position.y, eax
                 mov eax, -2
                 imul esi
 
@@ -356,6 +469,12 @@ WndProc proc hWin   :DWORD,
 
                 mov shipProjectiles[edi].velocity.x, eax
             .elseif shipSpritesIndex == 3
+                mov eax, ship.position.x
+                add eax, 6
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 12
+                mov shipProjectiles[edi].position.y, eax
                 mov eax, -1
                 imul esi
                 mov shipProjectiles[edi].velocity.y, eax
@@ -365,12 +484,24 @@ WndProc proc hWin   :DWORD,
 
                 mov shipProjectiles[edi].velocity.x, eax
             .elseif shipSpritesIndex == 4
+                mov eax, ship.position.x
+                ;add eax, 0
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 17
+                mov shipProjectiles[edi].position.y, eax
                 mov shipProjectiles[edi].velocity.y, 0
                 mov eax, -2
                 imul esi
 
                 mov shipProjectiles[edi].velocity.x, eax
             .elseif shipSpritesIndex == 5
+                mov eax, ship.position.x
+                add eax, 6
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 23
+                mov shipProjectiles[edi].position.y, eax
                 mov eax, 1
                 imul esi
 
@@ -381,6 +512,12 @@ WndProc proc hWin   :DWORD,
 
                 mov shipProjectiles[edi].velocity.x, eax
             .elseif shipSpritesIndex == 6
+                mov eax, ship.position.x
+                add eax, 9
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 27
+                mov shipProjectiles[edi].position.y, eax
                 mov eax, 2
                 imul esi
 
@@ -391,6 +528,12 @@ WndProc proc hWin   :DWORD,
 
                 mov shipProjectiles[edi].velocity.x, eax
             .elseif shipSpritesIndex == 7
+                mov eax, ship.position.x
+                add eax, 12
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 30
+                mov shipProjectiles[edi].position.y, eax
                 mov eax, 2
                 imul esi
 
@@ -401,12 +544,24 @@ WndProc proc hWin   :DWORD,
 
                 mov shipProjectiles[edi].velocity.x, eax
             .elseif shipSpritesIndex == 8
+                mov eax, ship.position.x
+                add eax, 17
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 30
+                mov shipProjectiles[edi].position.y, eax
                 mov eax, 2
                 imul esi
 
                 mov shipProjectiles[edi].velocity.y, eax
                 mov shipProjectiles[edi].velocity.x, 0
             .elseif shipSpritesIndex == 9
+                mov eax, ship.position.x
+                add eax, 24
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 30
+                mov shipProjectiles[edi].position.y, eax
                 mov eax, 2
                 imul esi
 
@@ -417,6 +572,12 @@ WndProc proc hWin   :DWORD,
 
                 mov shipProjectiles[edi].velocity.x, eax
             .elseif shipSpritesIndex == 10
+                mov eax, ship.position.x
+                add eax, 26
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 27
+                mov shipProjectiles[edi].position.y, eax
                 mov eax, 2
                 imul esi
 
@@ -427,6 +588,12 @@ WndProc proc hWin   :DWORD,
 
                 mov shipProjectiles[edi].velocity.x, eax
             .elseif shipSpritesIndex == 11
+                mov eax, ship.position.x
+                add eax, 29
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 23
+                mov shipProjectiles[edi].position.y, eax
                 mov eax, 1
                 imul esi
 
@@ -437,6 +604,12 @@ WndProc proc hWin   :DWORD,
 
                 mov shipProjectiles[edi].velocity.x, eax
             .elseif shipSpritesIndex == 12
+                mov eax, ship.position.x
+                add eax, 29
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 17
+                mov shipProjectiles[edi].position.y, eax
                 mov shipProjectiles[edi].velocity.y, 0
 
                 mov eax, 2
@@ -444,6 +617,12 @@ WndProc proc hWin   :DWORD,
 
                 mov shipProjectiles[edi].velocity.x, eax
             .elseif shipSpritesIndex == 13
+                mov eax, ship.position.x
+                add eax, 29
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 12
+                mov shipProjectiles[edi].position.y, eax
                 mov eax, -1
                 imul esi
 
@@ -454,6 +633,12 @@ WndProc proc hWin   :DWORD,
 
                 mov shipProjectiles[edi].velocity.x, eax
             .elseif shipSpritesIndex == 14
+                mov eax, ship.position.x
+                add eax, 26
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 8
+                mov shipProjectiles[edi].position.y, eax
                 mov eax, -2
                 imul esi
 
@@ -464,6 +649,12 @@ WndProc proc hWin   :DWORD,
 
                 mov shipProjectiles[edi].velocity.x, eax
             .elseif shipSpritesIndex == 15
+                mov eax, ship.position.x
+                add eax, 24                
+                mov shipProjectiles[edi].position.x, eax
+                mov eax, ship.position.y
+                add eax, 5
+                mov shipProjectiles[edi].position.y, eax
                 mov eax, -2
                 imul esi
 
@@ -719,33 +910,6 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         ;color to be ignored
         CREF_TRANSPARENT
 
-        mov eax, shipProjectiles[edi].velocity.x
-        add shipProjectiles[edi].position.x, eax
-
-        mov eax, shipProjectiles[edi].velocity.y
-        add shipProjectiles[edi].position.y, eax
-
-        .if shipProjectiles[edi].position.x > SCREEN_WIDTH+50
-            jmp clean_projectile
-        .elseif shipProjectiles[edi].position.x < -50
-            jmp clean_projectile
-        .elseif shipProjectiles[edi].position.y > SCREEN_HEIGHT+50
-            jmp clean_projectile
-        .elseif shipProjectiles[edi].position.y < -50
-            jmp clean_projectile
-        .else 
-            jmp end_of_paint_loop
-        .endif
-
-    clean_projectile:
-        mov shipProjectiles[edi].position.x, -1
-        mov shipProjectiles[edi].position.y, -1
-        mov shipProjectiles[edi].velocity.x, -1
-        mov shipProjectiles[edi].velocity.y, -1
-        mov shipProjectiles[edi].acceleration.x, -1
-        mov shipProjectiles[edi].acceleration.y, -1
-
-    end_of_paint_loop:
         add edi, 24
     .ENDW
 
@@ -763,7 +927,16 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     ;INVOKE  TransparentBlt,hDC,190,250,32,32,memDC,0,256,32,32,CREF_TRANSPARENT
     
     ;INVOKE  TransparentBlt,hDC,240,250,32,32,memDC,0,512,32,32,CREF_TRANSPARENT
+
+    invoke SetTextColor, memDC, WHITE_COLOR
+    invoke SetBkColor, memDC, BLACK_COLOR
+    invoke SelectObject, memDC, hFont
+
+    invoke wsprintfA, ADDR buffer, ADDR header_format, shipProjectiles[0].position.x, shipProjectiles[0].position.y
     
+    invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+    ;invoke TextOutA, hDC, 100, 100, ADDR buffer, eax
+
     invoke DeleteDC,memDC
 
     return 0
@@ -780,7 +953,7 @@ ThreadProc PROC USES ecx Param:DWORD
 	.IF eax == WAIT_TIMEOUT	
 	           invoke PostMessage,hWnd,WM_FINISH,NULL,NULL
 	           jmp   ThreadProc     
-	.ELSEIF eax == WAIT_OBJECT_0	
+	.ELSEIF eax == WAIT_OBJECT_0
 	         invoke PostMessage,hWnd,WM_FINISH,NULL,NULL
 	          jmp   ThreadProc
         .ENDIF
@@ -789,6 +962,8 @@ ThreadProc PROC USES ecx Param:DWORD
         
         ret
 ThreadProc ENDP
+
+
 
 
 end start
