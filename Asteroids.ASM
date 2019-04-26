@@ -23,6 +23,7 @@ space_backgroundBmpId equ 101
 asteroid1BmpId equ 102
 asteroid2BmpId equ 103
 asteroid3BmpId equ 104
+projectileBmpId equ 105
 
 BLACK_COLOR equ 0000000h
 WHITE_COLOR equ 0ffffffh
@@ -61,6 +62,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   asteroid1Bmp dd ?
   asteroid2Bmp dd ?
   asteroid3Bmp dd ?
+  projectileBmp dd ?
 
 	ExitCode dd 0
 	hThread dd 0
@@ -101,6 +103,9 @@ start:
 
       invoke LoadBitmap,hInstance, asteroid3BmpId
       mov asteroid3Bmp, eax
+
+      invoke LoadBitmap,hInstance, projectileBmpId
+      mov projectileBmp, eax
 
       ; Retrieve a handle to the variable stock font.  
       invoke GetStockObject, DEVICE_DEFAULT_FONT
@@ -219,7 +224,7 @@ UpdateThread PROC Param:DWORD
 
     mov ecx, ship.velocity.y
     mov eax, -1
-    imul shipMaxVelocity.x
+    imul shipMaxVelocity.y
     .if SDWORD PTR ecx > shipMaxVelocity.y
         m2m ship.velocity.y, shipMaxVelocity.y
     .elseif SDWORD PTR ecx < SDWORD PTR eax
@@ -893,7 +898,8 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     ;color to be ignored
     CREF_TRANSPARENT
 
-    invoke SelectObject,memDC,asteroid1Bmp ; select projectile image
+    ; TODO percorrer todos os projeteis
+    invoke SelectObject,memDC,projectileBmp ; select projectile image
     mov edi, 0
     .WHILE shipProjectiles[edi].position.x != -1
         ; paint the ship
@@ -901,14 +907,14 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         ;paint point
         shipProjectiles[edi].position.x, shipProjectiles[edi].position.y, \
         ;proj size
-        10,10, \
+        5,5, \
         memDC, \
         ;current_sprite
         0, 0, \
         ;proj size
-        10,10, \
+        5,5, \
         ;color to be ignored
-        CREF_TRANSPARENT
+        BLACK_COLOR
 
         add edi, 24
     .ENDW
@@ -944,26 +950,5 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
 Paint_Proc endp
 
 ; ########################################################################
-
-
-ThreadProc PROC USES ecx Param:DWORD
-
-        invoke WaitForSingleObject,hEventStart,1000 ;INFINITE
-
-	.IF eax == WAIT_TIMEOUT	
-	           invoke PostMessage,hWnd,WM_FINISH,NULL,NULL
-	           jmp   ThreadProc     
-	.ELSEIF eax == WAIT_OBJECT_0
-	         invoke PostMessage,hWnd,WM_FINISH,NULL,NULL
-	          jmp   ThreadProc
-        .ENDIF
-        
-        jmp   ThreadProc
-        
-        ret
-ThreadProc ENDP
-
-
-
 
 end start
