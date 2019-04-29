@@ -53,9 +53,14 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   ;shipSprites   POINT {0, 0}, {36, 0}, {72, 0}, {108, 0}
   shipSpritesIndex  dd 2
   ship BODY {{10, 10}, {0, 0}, {0, 0}}
-  shipMaxVelocity POINT {30, 30}
+  shipMaxVelocity POINT {10, 10}
   shipProjectiles BODY 30 dup ({{-1, 2}, {3, 4}, {5, 6}})
   UpdateThreadID dd 0
+  left_down db 0
+  right_down db 0
+  space_down db 0
+  up_down db 0
+  down_down db 0
 
   shipBmp         dd ?
   space_backgroundBmp dd ?
@@ -210,8 +215,414 @@ WinMain endp
 ; #########################################################################
 
 UpdateThread PROC Param:DWORD
-    invoke Sleep, 1000/60
+    invoke Sleep, 1000/21
     mov esi, -50
+
+    .if left_down == 1
+        .if shipSpritesIndex == 15
+            mov shipSpritesIndex, 0
+        .else
+            inc shipSpritesIndex
+        .endif
+    .endif
+    
+    .if right_down == 1
+        .if shipSpritesIndex == 0
+            mov shipSpritesIndex, 15
+        .else
+            dec shipSpritesIndex
+        .endif
+    .endif
+
+    .if up_down == 1
+        .if shipSpritesIndex == 0
+            dec ship.velocity.y
+            dec ship.velocity.y
+        .elseif shipSpritesIndex == 1
+            dec ship.velocity.y
+            dec ship.velocity.y
+            dec ship.velocity.x
+        .elseif shipSpritesIndex == 2
+            dec ship.velocity.y
+            dec ship.velocity.y
+            dec ship.velocity.x
+            dec ship.velocity.x
+        .elseif shipSpritesIndex == 3
+            dec ship.velocity.y
+            dec ship.velocity.x
+            dec ship.velocity.x
+        .elseif shipSpritesIndex == 4
+            dec ship.velocity.x
+            dec ship.velocity.x
+        .elseif shipSpritesIndex == 5
+            inc ship.velocity.y
+            dec ship.velocity.x
+            dec ship.velocity.x
+        .elseif shipSpritesIndex == 6
+            inc ship.velocity.y
+            inc ship.velocity.y
+            dec ship.velocity.x
+            dec ship.velocity.x
+        .elseif shipSpritesIndex == 7
+            inc ship.velocity.y
+            inc ship.velocity.y
+            dec ship.velocity.x
+        .elseif shipSpritesIndex == 8
+            inc ship.velocity.y
+            inc ship.velocity.y
+        .elseif shipSpritesIndex == 9
+            inc ship.velocity.y
+            inc ship.velocity.y
+            inc ship.velocity.x
+        .elseif shipSpritesIndex == 10
+            inc ship.velocity.y
+            inc ship.velocity.y
+            inc ship.velocity.x
+            inc ship.velocity.x
+        .elseif shipSpritesIndex == 11
+            inc ship.velocity.y
+            inc ship.velocity.x
+            inc ship.velocity.x
+        .elseif shipSpritesIndex == 12
+            inc ship.velocity.x
+            inc ship.velocity.x
+        .elseif shipSpritesIndex == 13
+            dec ship.velocity.y
+            inc ship.velocity.x
+            inc ship.velocity.x
+        .elseif shipSpritesIndex == 14
+            dec ship.velocity.y
+            dec ship.velocity.y
+            inc ship.velocity.x
+            inc ship.velocity.x
+        .elseif shipSpritesIndex == 15
+            dec ship.velocity.y
+            dec ship.velocity.y
+            inc ship.velocity.x
+        .endif
+    .endif
+
+    .if down_down == 1
+        .if shipSpritesIndex == 0
+            inc ship.velocity.y
+            inc ship.velocity.y
+        .elseif shipSpritesIndex == 1
+            inc ship.velocity.y
+            inc ship.velocity.y
+            inc ship.velocity.x
+        .elseif shipSpritesIndex == 2
+            inc ship.velocity.y
+            inc ship.velocity.y
+            inc ship.velocity.x
+            inc ship.velocity.x
+        .elseif shipSpritesIndex == 3
+            inc ship.velocity.y
+            inc ship.velocity.x
+            inc ship.velocity.x
+        .elseif shipSpritesIndex == 4
+            inc ship.velocity.x
+            inc ship.velocity.x
+        .elseif shipSpritesIndex == 5
+            dec ship.velocity.y
+            inc ship.velocity.x
+            inc ship.velocity.x
+        .elseif shipSpritesIndex == 6
+            dec ship.velocity.y
+            dec ship.velocity.y
+            inc ship.velocity.x
+            inc ship.velocity.x
+        .elseif shipSpritesIndex == 7
+            dec ship.velocity.y
+            dec ship.velocity.y
+            inc ship.velocity.x
+        .elseif shipSpritesIndex == 8
+            dec ship.velocity.y
+            dec ship.velocity.y
+        .elseif shipSpritesIndex == 9
+            dec ship.velocity.y
+            dec ship.velocity.y
+            dec ship.velocity.x
+        .elseif shipSpritesIndex == 10
+            dec ship.velocity.y
+            dec ship.velocity.y
+            dec ship.velocity.x
+            dec ship.velocity.x
+        .elseif shipSpritesIndex == 11
+            dec ship.velocity.y
+            dec ship.velocity.x
+            dec ship.velocity.x
+        .elseif shipSpritesIndex == 12
+            dec ship.velocity.x
+            dec ship.velocity.x
+        .elseif shipSpritesIndex == 13
+            inc ship.velocity.y
+            dec ship.velocity.x
+            dec ship.velocity.x
+        .elseif shipSpritesIndex == 14
+            inc ship.velocity.y
+            inc ship.velocity.y
+            dec ship.velocity.x
+            dec ship.velocity.x
+        .elseif shipSpritesIndex == 15
+            inc ship.velocity.y
+            inc ship.velocity.y
+            dec ship.velocity.x
+        .endif
+    .endif
+  
+    .if space_down == 1
+        mov edi, 0
+        .WHILE shipProjectiles[edi].position.x != -1 ; Find an empty slot in the array
+            add edi, 24
+        .ENDW
+        mov esi, PROJECTILE_VELOCITY
+
+        .if shipSpritesIndex == 0
+            mov eax, ship.position.x
+            add eax, 17
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 5
+            mov shipProjectiles[edi].position.y, eax
+
+            mov eax, -2
+            imul eax, PROJECTILE_VELOCITY
+
+            ;invoke wsprintfA, ADDR buffer, ADDR header_format, eax
+            ;invoke MessageBox, NULL, ADDR buffer, ADDR szDisplayName, MB_OK
+            mov shipProjectiles[edi].velocity.y, eax
+            mov shipProjectiles[edi].velocity.x, 0
+            ;invoke wsprintfA, ADDR buffer, ADDR header_format, eax
+            ;invoke MessageBox, NULL, ADDR buffer, ADDR szDisplayName, MB_OK
+        .elseif shipSpritesIndex == 1
+            mov eax, ship.position.x
+            add eax, 12
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 5
+            mov shipProjectiles[edi].position.y, eax
+            mov eax, -2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.y, eax
+
+            mov eax, -1
+            imul esi
+            mov shipProjectiles[edi].velocity.x, eax
+        .elseif shipSpritesIndex == 2
+            mov eax, ship.position.x
+            add eax, 9
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 8
+            mov shipProjectiles[edi].position.y, eax
+            mov eax, -2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.y, eax
+
+            mov eax, -2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.x, eax
+        .elseif shipSpritesIndex == 3
+            mov eax, ship.position.x
+            add eax, 6
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 12
+            mov shipProjectiles[edi].position.y, eax
+            mov eax, -1
+            imul esi
+            mov shipProjectiles[edi].velocity.y, eax
+
+            mov eax, -2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.x, eax
+        .elseif shipSpritesIndex == 4
+            mov eax, ship.position.x
+            ;add eax, 0
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 17
+            mov shipProjectiles[edi].position.y, eax
+            mov shipProjectiles[edi].velocity.y, 0
+            mov eax, -2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.x, eax
+        .elseif shipSpritesIndex == 5
+            mov eax, ship.position.x
+            add eax, 6
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 23
+            mov shipProjectiles[edi].position.y, eax
+            mov eax, 1
+            imul esi
+
+            mov shipProjectiles[edi].velocity.y, eax
+
+            mov eax, -2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.x, eax
+        .elseif shipSpritesIndex == 6
+            mov eax, ship.position.x
+            add eax, 9
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 27
+            mov shipProjectiles[edi].position.y, eax
+            mov eax, 2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.y, eax
+
+            mov eax, -2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.x, eax
+        .elseif shipSpritesIndex == 7
+            mov eax, ship.position.x
+            add eax, 12
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 30
+            mov shipProjectiles[edi].position.y, eax
+            mov eax, 2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.y, eax
+
+            mov eax, -1
+            imul esi
+
+            mov shipProjectiles[edi].velocity.x, eax
+        .elseif shipSpritesIndex == 8
+            mov eax, ship.position.x
+            add eax, 17
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 30
+            mov shipProjectiles[edi].position.y, eax
+            mov eax, 2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.y, eax
+            mov shipProjectiles[edi].velocity.x, 0
+        .elseif shipSpritesIndex == 9
+            mov eax, ship.position.x
+            add eax, 24
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 30
+            mov shipProjectiles[edi].position.y, eax
+            mov eax, 2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.y, eax
+
+            mov eax, 1
+            imul esi
+
+            mov shipProjectiles[edi].velocity.x, eax
+        .elseif shipSpritesIndex == 10
+            mov eax, ship.position.x
+            add eax, 26
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 27
+            mov shipProjectiles[edi].position.y, eax
+            mov eax, 2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.y, eax
+
+            mov eax, 2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.x, eax
+        .elseif shipSpritesIndex == 11
+            mov eax, ship.position.x
+            add eax, 29
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 23
+            mov shipProjectiles[edi].position.y, eax
+            mov eax, 1
+            imul esi
+
+            mov shipProjectiles[edi].velocity.y, eax
+
+            mov eax, 2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.x, eax
+        .elseif shipSpritesIndex == 12
+            mov eax, ship.position.x
+            add eax, 29
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 17
+            mov shipProjectiles[edi].position.y, eax
+            mov shipProjectiles[edi].velocity.y, 0
+
+            mov eax, 2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.x, eax
+        .elseif shipSpritesIndex == 13
+            mov eax, ship.position.x
+            add eax, 29
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 12
+            mov shipProjectiles[edi].position.y, eax
+            mov eax, -1
+            imul esi
+
+            mov shipProjectiles[edi].velocity.y, eax
+
+            mov eax, 2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.x, eax
+        .elseif shipSpritesIndex == 14
+            mov eax, ship.position.x
+            add eax, 26
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 8
+            mov shipProjectiles[edi].position.y, eax
+            mov eax, -2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.y, eax
+
+            mov eax, 2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.x, eax
+        .elseif shipSpritesIndex == 15
+            mov eax, ship.position.x
+            add eax, 24                
+            mov shipProjectiles[edi].position.x, eax
+            mov eax, ship.position.y
+            add eax, 5
+            mov shipProjectiles[edi].position.y, eax
+            mov eax, -2
+            imul esi
+
+            mov shipProjectiles[edi].velocity.y, eax
+
+            mov eax, 1
+            imul esi
+
+            mov shipProjectiles[edi].velocity.x, eax
+        .endif
+    .endif
 
     mov ecx, ship.velocity.x
     mov eax, -1
@@ -393,6 +804,7 @@ WndProc proc hWin   :DWORD,
         invoke BeginPaint,hWin,ADDR Ps
           mov hDC, eax
           invoke Paint_Proc,hWin,hDC
+          invoke Sleep, 10
         invoke EndPaint,hWin,ADDR Ps
         return 0
 
@@ -412,409 +824,33 @@ WndProc proc hWin   :DWORD,
    .elseif uMsg == WM_RBUTTONDOWN
    	  ;  invoke PostMessage,hWnd,WM_FINISH,NULL,NULL
    	 ; invoke SetEvent,hEventStart
-   	
 
    .elseif uMsg == WM_KEYDOWN
         .if wParam == VK_SPACE
-            mov edi, 0
-            .WHILE shipProjectiles[edi].position.x != -1 ; Find an empty slot in the array
-                add edi, 24
-            .ENDW
-
-            
-            
-            mov esi, PROJECTILE_VELOCITY
-
-            .if shipSpritesIndex == 0
-                mov eax, ship.position.x
-                add eax, 17
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 5
-                mov shipProjectiles[edi].position.y, eax
-
-                mov eax, -2
-                imul eax, PROJECTILE_VELOCITY
-
-                ;invoke wsprintfA, ADDR buffer, ADDR header_format, eax
-                ;invoke MessageBox, NULL, ADDR buffer, ADDR szDisplayName, MB_OK
-                mov shipProjectiles[edi].velocity.y, eax
-                mov shipProjectiles[edi].velocity.x, 0
-                ;invoke wsprintfA, ADDR buffer, ADDR header_format, eax
-                ;invoke MessageBox, NULL, ADDR buffer, ADDR szDisplayName, MB_OK
-            .elseif shipSpritesIndex == 1
-                mov eax, ship.position.x
-                add eax, 12
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 5
-                mov shipProjectiles[edi].position.y, eax
-                mov eax, -2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.y, eax
-
-                mov eax, -1
-                imul esi
-                mov shipProjectiles[edi].velocity.x, eax
-            .elseif shipSpritesIndex == 2
-                mov eax, ship.position.x
-                add eax, 9
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 8
-                mov shipProjectiles[edi].position.y, eax
-                mov eax, -2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.y, eax
-
-                mov eax, -2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.x, eax
-            .elseif shipSpritesIndex == 3
-                mov eax, ship.position.x
-                add eax, 6
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 12
-                mov shipProjectiles[edi].position.y, eax
-                mov eax, -1
-                imul esi
-                mov shipProjectiles[edi].velocity.y, eax
-
-                mov eax, -2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.x, eax
-            .elseif shipSpritesIndex == 4
-                mov eax, ship.position.x
-                ;add eax, 0
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 17
-                mov shipProjectiles[edi].position.y, eax
-                mov shipProjectiles[edi].velocity.y, 0
-                mov eax, -2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.x, eax
-            .elseif shipSpritesIndex == 5
-                mov eax, ship.position.x
-                add eax, 6
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 23
-                mov shipProjectiles[edi].position.y, eax
-                mov eax, 1
-                imul esi
-
-                mov shipProjectiles[edi].velocity.y, eax
-
-                mov eax, -2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.x, eax
-            .elseif shipSpritesIndex == 6
-                mov eax, ship.position.x
-                add eax, 9
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 27
-                mov shipProjectiles[edi].position.y, eax
-                mov eax, 2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.y, eax
-
-                mov eax, -2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.x, eax
-            .elseif shipSpritesIndex == 7
-                mov eax, ship.position.x
-                add eax, 12
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 30
-                mov shipProjectiles[edi].position.y, eax
-                mov eax, 2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.y, eax
-
-                mov eax, -1
-                imul esi
-
-                mov shipProjectiles[edi].velocity.x, eax
-            .elseif shipSpritesIndex == 8
-                mov eax, ship.position.x
-                add eax, 17
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 30
-                mov shipProjectiles[edi].position.y, eax
-                mov eax, 2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.y, eax
-                mov shipProjectiles[edi].velocity.x, 0
-            .elseif shipSpritesIndex == 9
-                mov eax, ship.position.x
-                add eax, 24
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 30
-                mov shipProjectiles[edi].position.y, eax
-                mov eax, 2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.y, eax
-
-                mov eax, 1
-                imul esi
-
-                mov shipProjectiles[edi].velocity.x, eax
-            .elseif shipSpritesIndex == 10
-                mov eax, ship.position.x
-                add eax, 26
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 27
-                mov shipProjectiles[edi].position.y, eax
-                mov eax, 2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.y, eax
-
-                mov eax, 2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.x, eax
-            .elseif shipSpritesIndex == 11
-                mov eax, ship.position.x
-                add eax, 29
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 23
-                mov shipProjectiles[edi].position.y, eax
-                mov eax, 1
-                imul esi
-
-                mov shipProjectiles[edi].velocity.y, eax
-
-                mov eax, 2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.x, eax
-            .elseif shipSpritesIndex == 12
-                mov eax, ship.position.x
-                add eax, 29
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 17
-                mov shipProjectiles[edi].position.y, eax
-                mov shipProjectiles[edi].velocity.y, 0
-
-                mov eax, 2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.x, eax
-            .elseif shipSpritesIndex == 13
-                mov eax, ship.position.x
-                add eax, 29
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 12
-                mov shipProjectiles[edi].position.y, eax
-                mov eax, -1
-                imul esi
-
-                mov shipProjectiles[edi].velocity.y, eax
-
-                mov eax, 2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.x, eax
-            .elseif shipSpritesIndex == 14
-                mov eax, ship.position.x
-                add eax, 26
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 8
-                mov shipProjectiles[edi].position.y, eax
-                mov eax, -2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.y, eax
-
-                mov eax, 2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.x, eax
-            .elseif shipSpritesIndex == 15
-                mov eax, ship.position.x
-                add eax, 24                
-                mov shipProjectiles[edi].position.x, eax
-                mov eax, ship.position.y
-                add eax, 5
-                mov shipProjectiles[edi].position.y, eax
-                mov eax, -2
-                imul esi
-
-                mov shipProjectiles[edi].velocity.y, eax
-
-                mov eax, 1
-                imul esi
-
-                mov shipProjectiles[edi].velocity.x, eax
-            .endif
+            mov space_down, 1
         .elseif wParam == VK_RIGHT
-            .if shipSpritesIndex == 0
-                mov shipSpritesIndex, 15
-            .else
-                dec shipSpritesIndex
-            .endif
+            mov right_down, 1
         .elseif wParam == VK_LEFT
-            .if shipSpritesIndex == 15
-                mov shipSpritesIndex, 0
-            .else
-                inc shipSpritesIndex
-            .endif
+            mov left_down, 1
         .elseif wParam == VK_UP
-            .if shipSpritesIndex == 0
-                dec ship.velocity.y
-                dec ship.velocity.y
-            .elseif shipSpritesIndex == 1
-                dec ship.velocity.y
-                dec ship.velocity.y
-                dec ship.velocity.x
-            .elseif shipSpritesIndex == 2
-                dec ship.velocity.y
-                dec ship.velocity.y
-                dec ship.velocity.x
-                dec ship.velocity.x
-            .elseif shipSpritesIndex == 3
-                dec ship.velocity.y
-                dec ship.velocity.x
-                dec ship.velocity.x
-            .elseif shipSpritesIndex == 4
-                dec ship.velocity.x
-                dec ship.velocity.x
-            .elseif shipSpritesIndex == 5
-                inc ship.velocity.y
-                dec ship.velocity.x
-                dec ship.velocity.x
-            .elseif shipSpritesIndex == 6
-                inc ship.velocity.y
-                inc ship.velocity.y
-                dec ship.velocity.x
-                dec ship.velocity.x
-            .elseif shipSpritesIndex == 7
-                inc ship.velocity.y
-                inc ship.velocity.y
-                dec ship.velocity.x
-            .elseif shipSpritesIndex == 8
-                inc ship.velocity.y
-                inc ship.velocity.y
-            .elseif shipSpritesIndex == 9
-                inc ship.velocity.y
-                inc ship.velocity.y
-                inc ship.velocity.x
-            .elseif shipSpritesIndex == 10
-                inc ship.velocity.y
-                inc ship.velocity.y
-                inc ship.velocity.x
-                inc ship.velocity.x
-            .elseif shipSpritesIndex == 11
-                inc ship.velocity.y
-                inc ship.velocity.x
-                inc ship.velocity.x
-            .elseif shipSpritesIndex == 12
-                inc ship.velocity.x
-                inc ship.velocity.x
-            .elseif shipSpritesIndex == 13
-                dec ship.velocity.y
-                inc ship.velocity.x
-                inc ship.velocity.x
-            .elseif shipSpritesIndex == 14
-                dec ship.velocity.y
-                dec ship.velocity.y
-                inc ship.velocity.x
-                inc ship.velocity.x
-            .elseif shipSpritesIndex == 15
-                dec ship.velocity.y
-                dec ship.velocity.y
-                inc ship.velocity.x
-            .endif
+            mov up_down, 1
         .elseif wParam == VK_DOWN
-            .if shipSpritesIndex == 0
-                inc ship.velocity.y
-                inc ship.velocity.y
-            .elseif shipSpritesIndex == 1
-                inc ship.velocity.y
-                inc ship.velocity.y
-                inc ship.velocity.x
-            .elseif shipSpritesIndex == 2
-                inc ship.velocity.y
-                inc ship.velocity.y
-                inc ship.velocity.x
-                inc ship.velocity.x
-            .elseif shipSpritesIndex == 3
-                inc ship.velocity.y
-                inc ship.velocity.x
-                inc ship.velocity.x
-            .elseif shipSpritesIndex == 4
-                inc ship.velocity.x
-                inc ship.velocity.x
-            .elseif shipSpritesIndex == 5
-                dec ship.velocity.y
-                inc ship.velocity.x
-                inc ship.velocity.x
-            .elseif shipSpritesIndex == 6
-                dec ship.velocity.y
-                dec ship.velocity.y
-                inc ship.velocity.x
-                inc ship.velocity.x
-            .elseif shipSpritesIndex == 7
-                dec ship.velocity.y
-                dec ship.velocity.y
-                inc ship.velocity.x
-            .elseif shipSpritesIndex == 8
-                dec ship.velocity.y
-                dec ship.velocity.y
-            .elseif shipSpritesIndex == 9
-                dec ship.velocity.y
-                dec ship.velocity.y
-                dec ship.velocity.x
-            .elseif shipSpritesIndex == 10
-                dec ship.velocity.y
-                dec ship.velocity.y
-                dec ship.velocity.x
-                dec ship.velocity.x
-            .elseif shipSpritesIndex == 11
-                dec ship.velocity.y
-                dec ship.velocity.x
-                dec ship.velocity.x
-            .elseif shipSpritesIndex == 12
-                dec ship.velocity.x
-                dec ship.velocity.x
-            .elseif shipSpritesIndex == 13
-                inc ship.velocity.y
-                dec ship.velocity.x
-                dec ship.velocity.x
-            .elseif shipSpritesIndex == 14
-                inc ship.velocity.y
-                inc ship.velocity.y
-                dec ship.velocity.x
-                dec ship.velocity.x
-            .elseif shipSpritesIndex == 15
-                inc ship.velocity.y
-                inc ship.velocity.y
-                dec ship.velocity.x
-            .endif
+            mov down_down, 1
         .endif
+   	
+    .elseif uMsg == WM_KEYUP
+        .if wParam == VK_RIGHT
+            mov right_down, 0
+        .elseif wParam == VK_LEFT
+            mov left_down, 0
+        .elseif wParam == VK_SPACE
+            mov space_down, 0
+        .elseif wParam == VK_UP
+            mov up_down, 0
+        .elseif wParam == VK_DOWN
+            mov down_down, 0
+        .endif
+   
    .elseif uMsg == WM_FINISH
 
 	inc posicao.x
@@ -944,7 +980,6 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     ;invoke TextOutA, hDC, 100, 100, ADDR buffer, eax
 
     invoke DeleteDC,memDC
-
     return 0
 
 Paint_Proc endp
