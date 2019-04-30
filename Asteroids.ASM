@@ -55,6 +55,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   ship BODY {{10, 10}, {0, 0}, {0, 0}}
   shipMaxVelocity POINT {10, 10}
   shipProjectiles BODY 30 dup ({{-1, 2}, {3, 4}, {5, 6}})
+  asteroids BODY 30 dup ({{30, 30}, {3, 4}, {1, 0}})
   UpdateThreadID dd 0
   left_down db 0
   right_down db 0
@@ -171,6 +172,15 @@ WinMain proc hInst     :DWORD,
 
       mov Wwd, SCREEN_WIDTH
       mov Wht, SCREEN_HEIGHT
+    
+        mov edi, 0
+        .WHILE edi < 30 * 24
+            mov asteroids[edi].position.x, 30; TODO gerar int aleatorio
+
+            mov asteroids[edi].position.y, 30
+
+            add edi, 24
+        .ENDW
 
       invoke GetSystemMetrics,SM_CXSCREEN
       invoke TopXY,Wwd,eax
@@ -722,7 +732,7 @@ UpdateThread PROC Param:DWORD
     ret
 UpdateThread ENDP
 
-WndProc proc hWin   :DWORD,
+WndProc proc hWin   :DWORD,     
              uMsg   :DWORD,
              wParam :DWORD,
              lParam :DWORD
@@ -761,17 +771,16 @@ WndProc proc hWin   :DWORD,
 
 		
     .elseif uMsg == WM_SIZE
-;    // obter o tamanho da janela
+    ;    // obter o tamanho da janela
     
     .elseif uMsg == WM_MOUSEMOVE
-    		mov eax,lParam
-    		and eax,0ffffh
-    		mov hitpoint.x,eax
-    		mov eax,lParam
-    		shr eax,16
-    		mov hitpoint.y,eax
-    		invoke InvalidateRect,hWnd,NULL,TRUE
-    
+        mov eax,lParam
+        and eax,0ffffh
+        mov hitpoint.x,eax
+        mov eax,lParam
+        shr eax,16
+        mov hitpoint.y,eax
+        invoke InvalidateRect,hWnd,NULL,TRUE
     
     .elseif uMsg == WM_LBUTTONDOWN
 		mov eax,lParam
@@ -933,6 +942,32 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     36,36, \
     ;color to be ignored
     CREF_TRANSPARENT
+
+    invoke SelectObject,memDC,asteroid1Bmp
+    mov edi, 0
+    .WHILE asteroids[edi].position.x != -1
+        .if asteroids[edi].acceleration.x == 1 ;TODO aceleracao.x = size
+            mov esi, 40
+        .elseif asteroids[edi].acceleration.x == 2
+            mov esi, 20
+        .else 
+            mov esi, 10
+        .endif
+        invoke TransparentBlt,hDC, \
+        ;paint point
+        asteroids[edi].position.x, asteroids[edi].position.y, \
+        ;asteroid size
+        40, 40, \
+        memDC, \
+        ;current_sprite
+        0, 0, \
+        ;asteroid size
+        esi, esi, \
+        ;color to be ignored
+        BLACK_COLOR
+        
+        add edi, 24
+    .ENDW
 
     ; TODO percorrer todos os projeteis
     invoke SelectObject,memDC,projectileBmp ; select projectile image
