@@ -49,13 +49,14 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   lRect         RECT <>
   hitpoint 	    POINT <>
   posicao       POINT <>
+  randomnum  db  2 dup (?)
 
   ;shipSprites   POINT {0, 0}, {36, 0}, {72, 0}, {108, 0}
   shipSpritesIndex  dd 2
   ship BODY {{10, 10}, {0, 0}, {0, 0}}
   shipMaxVelocity POINT {10, 10}
   shipProjectiles BODY 30 dup ({{-1, 2}, {3, 4}, {5, 6}})
-  asteroids BODY 30 dup ({{30, 30}, {3, 4}, {1, 0}})
+  asteroids BODY 30 dup ({{-1, -1}, {1, 1}, {1, 0}})
   UpdateThreadID dd 0
   left_down db 0
   right_down db 0
@@ -173,14 +174,37 @@ WinMain proc hInst     :DWORD,
       mov Wwd, SCREEN_WIDTH
       mov Wht, SCREEN_HEIGHT
     
-        mov edi, 0
-        .WHILE edi < 30 * 24
-            mov asteroids[edi].position.x, 30; TODO gerar int aleatorio
+			mov edi, 0
+			.WHILE edi < 720
+				invoke  GetTickCount
+				invoke  nseed, eax
+				invoke  nrandom, SCREEN_WIDTH
+				mov asteroids[edi].position.x, eax
 
-            mov asteroids[edi].position.y, 30
+				invoke  GetTickCount
+				invoke  nseed, eax
+				invoke  nrandom, SCREEN_HEIGHT
+				mov asteroids[edi].position.y, eax
 
-            add edi, 24
-        .ENDW
+				invoke  GetTickCount
+				invoke  nseed, eax
+				invoke  nrandom, 3
+				mov asteroids[edi].acceleration.x, eax
+
+				invoke  GetTickCount
+				invoke  nseed, eax
+				invoke  nrandom, 5
+				add eax, -2
+				mov asteroids[edi].velocity.y, eax
+
+				invoke  GetTickCount
+				invoke  nseed, eax
+				invoke  nrandom, 5
+				add eax, -2
+				mov asteroids[edi].velocity.x, eax
+
+				add edi, 24
+			.ENDW
 
       invoke GetSystemMetrics,SM_CXSCREEN
       invoke TopXY,Wwd,eax
@@ -943,30 +967,32 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     ;color to be ignored
     CREF_TRANSPARENT
 
-    invoke SelectObject,memDC,asteroid1Bmp
     mov edi, 0
     .WHILE asteroids[edi].position.x != -1
-        .if asteroids[edi].acceleration.x == 1 ;TODO aceleracao.x = size
-            mov esi, 40
-        .elseif asteroids[edi].acceleration.x == 2
-            mov esi, 20
-        .else 
-            mov esi, 10
-        .endif
-        invoke TransparentBlt,hDC, \
-        ;paint point
-        asteroids[edi].position.x, asteroids[edi].position.y, \
-        ;asteroid size
-        40, 40, \
-        memDC, \
-        ;current_sprite
-        0, 0, \
-        ;asteroid size
-        esi, esi, \
-        ;color to be ignored
-        BLACK_COLOR
-        
-        add edi, 24
+			.if asteroids[edi].acceleration.x == 1 ;TODO aceleracao.x = size
+				invoke SelectObject,memDC,asteroid1Bmp
+				mov esi, 40
+			.elseif asteroids[edi].acceleration.x == 2
+				invoke SelectObject,memDC,asteroid2Bmp
+				mov esi, 20
+			.else 
+				invoke SelectObject,memDC,asteroid3Bmp
+				mov esi, 10
+			.endif
+			invoke TransparentBlt,hDC, \
+			;paint point
+			asteroids[edi].position.x, asteroids[edi].position.y, \
+			;asteroid size
+			esi, esi, \
+			memDC, \
+			;current_sprite
+			0, 0, \
+			;asteroid size
+			esi, esi, \
+			;color to be ignored
+			BLACK_COLOR
+			
+			add edi, 24
     .ENDW
 
     ; TODO percorrer todos os projeteis
