@@ -760,20 +760,20 @@ UpdateThread PROC Param:DWORD
         mov eax, asteroids[edi].velocity.y
         add asteroids[edi].position.y, eax
 
-        .if asteroids[edi].position.x > SCREEN_WIDTH
+        .if asteroids[edi].position.x >= 800
           mov asteroids[edi].position.x, 0
         .endif
 
-        .if asteroids[edi].position.x < 0
-          mov asteroids[edi].position.x, SCREEN_WIDTH
+        .if asteroids[edi].position.x <= 0
+          mov asteroids[edi].position.x, 800
         .endif
         
-        .if asteroids[edi].position.y > SCREEN_HEIGHT
+        .if asteroids[edi].position.y >= 600
           mov asteroids[edi].position.y, 0
         .endif
 
-        .if asteroids[edi].position.y < 0
-          mov asteroids[edi].position.y, SCREEN_HEIGHT
+        .if asteroids[edi].position.y <= 0
+          mov asteroids[edi].position.y, 600
         .endif
       .endif
 			add edi, 24
