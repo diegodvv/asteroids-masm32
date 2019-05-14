@@ -186,6 +186,7 @@ WinMain proc hInst     :DWORD,
     
         mov index, 0
         .WHILE index < 540
+            invoke Sleep, 10   
             xor eax, eax
             invoke  GetTickCount
             invoke  nseed, eax
@@ -193,12 +194,14 @@ WinMain proc hInst     :DWORD,
             mov ecx, index
             mov asteroids[ecx].position.x, eax
 
+            invoke Sleep, 10   
             invoke  GetTickCount
             invoke  nseed, eax
             invoke  nrandom, SCREEN_HEIGHT
             mov ecx, index
             mov asteroids[ecx].position.y, eax
 
+            invoke Sleep, 10   
             xor eax, eax
             invoke  GetTickCount
             invoke  nseed, eax
@@ -207,6 +210,7 @@ WinMain proc hInst     :DWORD,
             mov ecx, index
             mov asteroids[ecx].tam, eax
 
+            invoke Sleep, 10   
             xor eax, eax
             invoke  GetTickCount
             invoke  nseed, eax
@@ -215,6 +219,7 @@ WinMain proc hInst     :DWORD,
             mov ecx, index
             mov asteroids[ecx].velocity.x, eax
 
+            invoke Sleep, 10   
             xor eax, eax
             invoke  GetTickCount
             invoke  nseed, eax
@@ -224,6 +229,7 @@ WinMain proc hInst     :DWORD,
             mov asteroids[ecx].velocity.y, eax
 
             add index, sizeof ASTEROID
+            
         .ENDW
       invoke GetSystemMetrics,SM_CXSCREEN
       invoke TopXY,Wwd,eax
