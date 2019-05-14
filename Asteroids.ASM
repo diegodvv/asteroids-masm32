@@ -9,7 +9,7 @@ include Asteroids.inc    ; local includes for this file
 ASTEROID STRUCT
     position POINT <>
     velocity POINT <>
-    tam dw 0
+    tam dd 0
 ASTEROID ENDS
 
 BODY STRUCT
@@ -36,6 +36,7 @@ BLACK_COLOR equ 0000000h
 WHITE_COLOR equ 0ffffffh
 
 PROJECTILE_VELOCITY equ 10
+ASTEROID_MAX_VELOCITY equ 10
 
 
 CREF_TRANSPARENT  EQU 0FF00FFh
@@ -81,6 +82,8 @@ CREF_TRANSPARENT2 EQU 0FF0000h
 	ExitCode dd 0
 	hThread dd 0
 	hEventStart dd 0
+
+  index dd 0
         
   AppName  db "Our First Window",0
   MenuName db "FirstMenu",0
@@ -88,7 +91,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   error_string db "Error loading image",0
   strEqualNegativeOne db "Not equal to negative one",0
   buffer db 300 dup(?)
-  header_format db "P1: x:%d y:%d",0
+  header_format db "A1.tam: %d A2.tam:%d",0
 
   EventStop BOOL FALSE
 ; #########################################################################
@@ -181,44 +184,47 @@ WinMain proc hInst     :DWORD,
       mov Wwd, SCREEN_WIDTH
       mov Wht, SCREEN_HEIGHT
     
-        mov edi, 0
-        .WHILE edi < 540
+        mov index, 0
+        .WHILE index < 540
             xor eax, eax
             invoke  GetTickCount
             invoke  nseed, eax
             invoke  nrandom, SCREEN_WIDTH
-            mov asteroids[edi].position.x, eax
+            mov ecx, index
+            mov asteroids[ecx].position.x, eax
 
-            xor eax, eax
             invoke  GetTickCount
             invoke  nseed, eax
             invoke  nrandom, SCREEN_HEIGHT
-            mov asteroids[edi].position.y, eax
+            mov ecx, index
+            mov asteroids[ecx].position.y, eax
 
-            xor ax, ax
+            xor eax, eax
             invoke  GetTickCount
-            invoke  nseed, ax
+            invoke  nseed, eax
             invoke  nrandom, 2
-            add ax, 1
-            mov asteroids[edi].tam, ax
+            add eax, 1
+            mov ecx, index
+            mov asteroids[ecx].tam, eax
 
             xor eax, eax
             invoke  GetTickCount
             invoke  nseed, eax
-            invoke  nrandom, 10
+            invoke  nrandom, ASTEROID_MAX_VELOCITY
             add eax, -5
-            mov asteroids[edi].velocity.x, eax
+            mov ecx, index
+            mov asteroids[ecx].velocity.x, eax
 
             xor eax, eax
             invoke  GetTickCount
             invoke  nseed, eax
-            invoke  nrandom, 10
+            invoke  nrandom, ASTEROID_MAX_VELOCITY
             add eax, -5
-            mov asteroids[edi].velocity.y, eax
+            mov ecx, index
+            mov asteroids[ecx].velocity.y, eax
 
-            add edi, 18
+            add index, sizeof ASTEROID
         .ENDW
-
       invoke GetSystemMetrics,SM_CXSCREEN
       invoke TopXY,Wwd,eax
       mov Wtx, eax
@@ -763,25 +769,27 @@ UpdateThread PROC Param:DWORD
     .ENDW
 
 	mov edi, 0
-    .WHILE asteroids[edi].tam > 0
+    .WHILE asteroids[edi].tam < 4
         mov eax, asteroids[edi].velocity.x
         add asteroids[edi].position.x, eax
 
         mov eax, asteroids[edi].velocity.y
         add asteroids[edi].position.y, eax
 
-        .if asteroids[edi].position.x >= 800
+        mov ebx, asteroids[edi].position.x
+        .if SDWORD PTR ebx > 800
           mov asteroids[edi].position.x, -10
-        .elseif asteroids[edi].position.x <= 0
-          mov asteroids[edi].position.x, 810
+        .elseif SDWORD PTR ebx <= -30
+          mov asteroids[edi].position.x, 800
         .endif
         
-        .if asteroids[edi].position.y >= 600
-          mov asteroids[edi].position.y, -10
-        .elseif asteroids[edi].position.y <= 0
-          mov asteroids[edi].position.y, 610
+        mov ebx, asteroids[edi].position.y
+        .if SDWORD PTR ebx > 600
+          mov asteroids[edi].position.y, -30
+        .elseif SDWORD PTR ebx <= -40
+          mov asteroids[edi].position.y, 600
         .endif
-		add edi, 18
+		add edi, sizeof ASTEROID
     .ENDW
 
 
@@ -1025,7 +1033,7 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         esi, esi, \
         ;color to be ignored
         BLACK_COLOR
-	    add edi, 18
+	    add edi, sizeof ASTEROID
     .ENDW
 
     ; TODO percorrer todos os projeteis
@@ -1068,7 +1076,9 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     invoke SetBkColor, memDC, BLACK_COLOR
     invoke SelectObject, memDC, hFont
 
-    invoke wsprintfA, ADDR buffer, ADDR header_format, shipProjectiles[0].position.x, shipProjectiles[0].position.y
+    mov eax, offset asteroids
+    add eax, sizeof ASTEROID+4+4+4+4
+    invoke wsprintfA, ADDR buffer, ADDR header_format, asteroids[sizeof ASTEROID * 20].position.x, asteroids[sizeof ASTEROID * 5].position.x
     
     invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
     ;invoke TextOutA, hDC, 100, 100, ADDR buffer, eax
