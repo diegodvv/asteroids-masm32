@@ -186,8 +186,7 @@ WinMain proc hInst     :DWORD,
     
         mov index, 0
         .WHILE index < 540
-            invoke Sleep, 10   
-            xor eax, eax
+            invoke Sleep, 10
             invoke  GetTickCount
             invoke  nseed, eax
             invoke  nrandom, SCREEN_WIDTH
@@ -201,11 +200,10 @@ WinMain proc hInst     :DWORD,
             mov ecx, index
             mov asteroids[ecx].position.y, eax
 
-            invoke Sleep, 10   
-            xor eax, eax
+            invoke Sleep, 10
             invoke  GetTickCount
             invoke  nseed, eax
-            invoke  nrandom, 2
+            invoke  nrandom, 3
             add eax, 1
             mov ecx, index
             mov asteroids[ecx].tam, eax
@@ -1017,12 +1015,12 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
 
     mov edi, 0
     .WHILE asteroids[edi].tam > 0
-        .if asteroids[edi].tam == 1 ;TODO aceleracao.x = size
+        .if asteroids[edi].tam == 1
             invoke SelectObject,memDC,asteroid1Bmp
-        mov esi, 40
+            mov esi, 40
         .elseif asteroids[edi].tam == 2
             invoke SelectObject,memDC,asteroid2Bmp
-        mov esi, 20
+            mov esi, 20
         .elseif asteroids[edi].tam == 3
             invoke SelectObject,memDC,asteroid3Bmp
             mov esi, 10
@@ -1084,7 +1082,7 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
 
     mov eax, offset asteroids
     add eax, sizeof ASTEROID+4+4+4+4
-    invoke wsprintfA, ADDR buffer, ADDR header_format, asteroids[sizeof ASTEROID * 20].position.x, asteroids[sizeof ASTEROID * 5].position.x
+    invoke wsprintfA, ADDR buffer, ADDR header_format, asteroids[sizeof ASTEROID * 20].tam, asteroids[sizeof ASTEROID * 5].tam
     
     invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
     ;invoke TextOutA, hDC, 100, 100, ADDR buffer, eax
