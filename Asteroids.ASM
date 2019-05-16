@@ -803,15 +803,16 @@ UpdateThread PROC Param:DWORD
         .endif
         
         mov ecx, asteroids[edi].position.x
-        .IF SDWORD PTR ecx < ship.position.x + 36
+        .IF SDWORD PTR ecx <= ship.position.x + 36
             mov ecx, asteroids[edi].position.x
             add ecx, esi
-            .IF ship.position.x < SDWORD PTR ecx
+            .IF ship.position.x <= SDWORD PTR ecx
+        jmp start
                 mov ecx, asteroids[edi].position.y
-                .IF SDWORD PTR ecx < ship.position.y + 36
+                .IF SDWORD PTR ecx <= ship.position.y + 36
                     mov ecx, asteroids[edi].position.y
                     add ecx, esi
-                    .IF ship.position.y < SDWORD PTR ecx
+                    .IF ship.position.y <= SDWORD PTR ecx
                         jmp start
                     .ENDIF
                 .ENDIF
