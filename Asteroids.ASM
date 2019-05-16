@@ -185,7 +185,7 @@ WinMain proc hInst     :DWORD,
       mov Wht, SCREEN_HEIGHT
     
         mov index, 0
-        .WHILE index < 540
+        .WHILE index < sizeof ASTEROID * 30
             invoke Sleep, 10
             invoke  GetTickCount
             invoke  nseed, eax
@@ -793,9 +793,34 @@ UpdateThread PROC Param:DWORD
         .elseif SDWORD PTR ebx <= -40
           mov asteroids[edi].position.y, 600
         .endif
+
+        .if asteroids[edi].tam == 1
+            mov esi, 40
+        .elseif asteroids[edi].tam == 2
+            mov esi, 20
+        .elseif asteroids[edi].tam == 3
+            mov esi, 10
+        .endif
+        
+        mov ecx, asteroids[edi].position.x
+        .IF SDWORD PTR ecx < ship.position.x + 36
+            mov ecx, asteroids[edi].position.x
+            add ecx, esi
+            .IF ship.position.x < SDWORD PTR ecx
+                mov ecx, asteroids[edi].position.y
+                .IF SDWORD PTR ecx < ship.position.y + 36
+                    mov ecx, asteroids[edi].position.y
+                    add ecx, esi
+                    .IF ship.position.y < SDWORD PTR ecx
+                        jmp start
+                    .ENDIF
+                .ENDIF
+            .ENDIF
+        .ENDIF
+        
 		add edi, sizeof ASTEROID
     .ENDW
-
+; RectA.X1 < RectB.X2 && RectA.X2 > RectB.X1 && RectA.Y1 > RectB.Y2 && RectA.Y2 < RectB.Y1
 
     invoke InvalidateRect,hWnd,NULL,TRUE
     jmp UpdateThread
@@ -983,8 +1008,6 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     ;invoke BitBlt,hDC, hitpoint.x,hitpoint.y,166,68,memDC,0,0,SRCCOPY
     ;invoke BitBlt,hDC,10,200,166,68,memDC,0,0,SRCCOPY
 
-    
-
     ;invoke SelectObject,hDC,hOld
     
     invoke SelectObject,memDC,space_backgroundBmp ; select background
@@ -1018,12 +1041,12 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         .if asteroids[edi].tam == 1
             invoke SelectObject,memDC,asteroid1Bmp
             mov esi, 40
-        .elseif asteroids[edi].tam == 2
-            invoke SelectObject,memDC,asteroid2Bmp
-            mov esi, 20
         .elseif asteroids[edi].tam == 3
             invoke SelectObject,memDC,asteroid3Bmp
             mov esi, 10
+        .elseif asteroids[edi].tam == 2
+            invoke SelectObject,memDC,asteroid2Bmp
+            mov esi, 20
         .endif
         invoke TransparentBlt,hDC, \
         ;paint point
