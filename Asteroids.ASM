@@ -35,6 +35,9 @@ projectileBmpId equ 105
 BLACK_COLOR equ 0000000h
 WHITE_COLOR equ 0ffffffh
 
+ASTEROIDS_INIT equ 20
+ASTEROIDS_MAX equ ASTEROIDS_INIT * 4
+
 PROJECTILE_VELOCITY equ 10
 ASTEROID_MAX_VELOCITY equ 10
 
@@ -64,7 +67,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   ship BODY {{10, 10}, {0, 0}, {0, 0}}
   shipMaxVelocity POINT {10, 10}
   shipProjectiles BODY 30 dup ({{-1, 2}, {3, 4}, {5, 6}})
-  asteroids ASTEROID 45 dup ({{-1, -1}, {1, 1}, 1})
+  asteroids ASTEROID ASTEROIDS_MAX dup ({{-1, -1}, {1, 1}, 1})
   UpdateThreadID dd 0
   left_down db 0
   right_down db 0
@@ -187,7 +190,7 @@ WinMain proc hInst     :DWORD,
       mov Wht, SCREEN_HEIGHT
     
         mov edi, 0
-        .WHILE edi < sizeof ASTEROID * 45
+        .WHILE edi < sizeof ASTEROID * ASTEROIDS_MAX
             invoke Sleep, 10
             invoke  GetTickCount
             invoke  nseed, eax
@@ -200,7 +203,7 @@ WinMain proc hInst     :DWORD,
             invoke  nrandom, SCREEN_HEIGHT
             mov asteroids[edi].position.y, eax
 
-            .IF edi < 15 * sizeof ASTEROID
+            .IF edi < ASTEROIDS_INIT * sizeof ASTEROID
                 invoke Sleep, 10
                 invoke  GetTickCount
                 invoke  nseed, eax
