@@ -71,6 +71,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   space_down db 0
   up_down db 0
   down_down db 0
+  bateu db 0
 
   shipBmp         dd ?
   space_backgroundBmp dd ?
@@ -91,7 +92,8 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   error_string db "Error loading image",0
   strEqualNegativeOne db "Not equal to negative one",0
   buffer db 300 dup(?)
-  header_format db "A1.tam: %d A2.tam:%d",0
+  header_format db "left: %d right:%d top:%d bottom:%d",0
+  header_format_bateu db "BATEU",0
 
   EventStop BOOL FALSE
 ; #########################################################################
@@ -229,6 +231,9 @@ WinMain proc hInst     :DWORD,
             add index, sizeof ASTEROID
             
         .ENDW
+
+        mov ship.position.x, 400 - 18
+        mov ship.position.y, 300 - 18
       invoke GetSystemMetrics,SM_CXSCREEN
       invoke TopXY,Wwd,eax
       mov Wtx, eax
@@ -772,57 +777,68 @@ UpdateThread PROC Param:DWORD
         add edi, 24
     .ENDW
 
+    mov bateu, 0
+
 	mov edi, 0
-    .WHILE asteroids[edi].tam < 4
-        mov eax, asteroids[edi].velocity.x
-        add asteroids[edi].position.x, eax
+    .WHILE edi < 30 * sizeof ASTEROID
+        .IF asteroids[edi].tam > 0
+            mov eax, asteroids[edi].velocity.x
+            add asteroids[edi].position.x, eax
 
-        mov eax, asteroids[edi].velocity.y
-        add asteroids[edi].position.y, eax
+            mov eax, asteroids[edi].velocity.y
+            add asteroids[edi].position.y, eax
 
-        mov ebx, asteroids[edi].position.x
-        .if SDWORD PTR ebx > 800
-          mov asteroids[edi].position.x, -10
-        .elseif SDWORD PTR ebx <= -30
-          mov asteroids[edi].position.x, 800
-        .endif
-        
-        mov ebx, asteroids[edi].position.y
-        .if SDWORD PTR ebx > 600
-          mov asteroids[edi].position.y, -30
-        .elseif SDWORD PTR ebx <= -40
-          mov asteroids[edi].position.y, 600
-        .endif
+            mov ebx, asteroids[edi].position.x
+            .if SDWORD PTR ebx > 800
+            mov asteroids[edi].position.x, -10
+            .elseif SDWORD PTR ebx <= -30
+            mov asteroids[edi].position.x, 800
+            .endif
+            
+            mov ebx, asteroids[edi].position.y
+            .if SDWORD PTR ebx > 600
+            mov asteroids[edi].position.y, -30
+            .elseif SDWORD PTR ebx <= -40
+            mov asteroids[edi].position.y, 600
+            .endif
 
-        .if asteroids[edi].tam == 1
-            mov esi, 40
-        .elseif asteroids[edi].tam == 2
-            mov esi, 20
-        .elseif asteroids[edi].tam == 3
-            mov esi, 10
-        .endif
-        
-        mov ecx, asteroids[edi].position.x
-        .IF SDWORD PTR ecx <= ship.position.x + 36
-            mov ecx, asteroids[edi].position.x
-            add ecx, esi
-            .IF ship.position.x <= SDWORD PTR ecx
-        jmp start
-                mov ecx, asteroids[edi].position.y
-                .IF SDWORD PTR ecx <= ship.position.y + 36
-                    mov ecx, asteroids[edi].position.y
-                    add ecx, esi
-                    .IF ship.position.y <= SDWORD PTR ecx
-                        jmp start
+            .if asteroids[edi].tam == 1
+                mov esi, 40
+            .elseif asteroids[edi].tam == 2
+                mov esi, 20
+            .elseif asteroids[edi].tam == 3
+                mov esi, 10
+            .endif
+            
+            mov ebx, asteroids[edi].position.x
+            add ebx, esi
+            mov eax, ship.position.x
+            .IF SDWORD PTR ebx > SDWORD PTR eax
+                mov ebx, asteroids[edi].position.x
+                mov eax, ship.position.x
+                add eax, 36
+                .IF SDWORD PTR ebx < SDWORD PTR eax
+                    mov ebx, asteroids[edi].position.y
+                    add ebx, esi
+                    mov eax, ship.position.y
+                    .IF SDWORD PTR ebx > SDWORD PTR eax
+                        mov ebx, asteroids[edi].position.y
+                        mov eax, ship.position.y
+                        add eax, 36
+                        .IF SDWORD PTR ebx < SDWORD PTR eax
+                            mov bateu, 1
+                        .ENDIF
                     .ENDIF
                 .ENDIF
             .ENDIF
+            
+            add edi, sizeof ASTEROID
         .ENDIF
-        
-		add edi, sizeof ASTEROID
     .ENDW
-; RectA.X1 < RectB.X2 && RectA.X2 > RectB.X1 && RectA.Y1 > RectB.Y2 && RectA.Y2 < RectB.Y1
-
+; Bx + Bw > Ax &&
+; Bx < Ax + Aw &&
+; By + Bh > Ay && 
+; By < Ay + Ah
     invoke InvalidateRect,hWnd,NULL,TRUE
     jmp UpdateThread
     ret
@@ -1104,12 +1120,21 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     invoke SetBkColor, memDC, BLACK_COLOR
     invoke SelectObject, memDC, hFont
 
-    mov eax, offset asteroids
-    add eax, sizeof ASTEROID+4+4+4+4
-    invoke wsprintfA, ADDR buffer, ADDR header_format, asteroids[sizeof ASTEROID * 20].tam, asteroids[sizeof ASTEROID * 5].tam
-    
-    invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
-    ;invoke TextOutA, hDC, 100, 100, ADDR buffer, eax
+    .IF !bateu
+        mov esi, ship.position.x
+        neg esi
+        add esi, SCREEN_WIDTH - 36
+
+        mov edi, ship.position.y
+        neg edi
+        add edi, SCREEN_WIDTH - 36
+        invoke wsprintfA, ADDR buffer, ADDR header_format, ship.position.x, esi, ship.position.y, edi
+        invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+        ;invoke TextOutA, hDC, 100, 100, ADDR buffer, eax
+    .ELSE
+        invoke wsprintfA, ADDR buffer, ADDR header_format_bateu
+        invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+    .ENDIF
 
     invoke DeleteDC,memDC
     return 0
