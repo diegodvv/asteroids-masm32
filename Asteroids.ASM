@@ -64,7 +64,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   ship BODY {{10, 10}, {0, 0}, {0, 0}}
   shipMaxVelocity POINT {10, 10}
   shipProjectiles BODY 30 dup ({{-1, 2}, {3, 4}, {5, 6}})
-  asteroids ASTEROID 30 dup ({{-1, -1}, {1, 1}, 1})
+  asteroids ASTEROID 45 dup ({{-1, -1}, {1, 1}, 1})
   UpdateThreadID dd 0
   left_down db 0
   right_down db 0
@@ -186,29 +186,30 @@ WinMain proc hInst     :DWORD,
       mov Wwd, SCREEN_WIDTH
       mov Wht, SCREEN_HEIGHT
     
-        mov index, 0
-        .WHILE index < sizeof ASTEROID * 30
+        mov edi, 0
+        .WHILE edi < sizeof ASTEROID * 45
             invoke Sleep, 10
             invoke  GetTickCount
             invoke  nseed, eax
             invoke  nrandom, SCREEN_WIDTH
-            mov ecx, index
-            mov asteroids[ecx].position.x, eax
-
-            invoke Sleep, 10   
-            invoke  GetTickCount
-            invoke  nseed, eax
-            invoke  nrandom, SCREEN_HEIGHT
-            mov ecx, index
-            mov asteroids[ecx].position.y, eax
+            mov asteroids[edi].position.x, eax
 
             invoke Sleep, 10
             invoke  GetTickCount
             invoke  nseed, eax
-            invoke  nrandom, 3
-            add eax, 1
-            mov ecx, index
-            mov asteroids[ecx].tam, eax
+            invoke  nrandom, SCREEN_HEIGHT
+            mov asteroids[edi].position.y, eax
+
+            .IF edi < 15 * sizeof ASTEROID
+                invoke Sleep, 10
+                invoke  GetTickCount
+                invoke  nseed, eax
+                invoke  nrandom, 3
+                add eax, 1
+                mov asteroids[edi].tam, eax
+            .ELSE
+                mov asteroids[edi].tam, 0
+            .ENDIF
 
             invoke Sleep, 10   
             xor eax, eax
@@ -216,8 +217,7 @@ WinMain proc hInst     :DWORD,
             invoke  nseed, eax
             invoke  nrandom, ASTEROID_MAX_VELOCITY
             add eax, -5
-            mov ecx, index
-            mov asteroids[ecx].velocity.x, eax
+            mov asteroids[edi].velocity.x, eax
 
             invoke Sleep, 10   
             xor eax, eax
@@ -225,11 +225,9 @@ WinMain proc hInst     :DWORD,
             invoke  nseed, eax
             invoke  nrandom, ASTEROID_MAX_VELOCITY
             add eax, -5
-            mov ecx, index
-            mov asteroids[ecx].velocity.y, eax
+            mov asteroids[edi].velocity.y, eax
 
-            add index, sizeof ASTEROID
-            
+            add edi, sizeof ASTEROID
         .ENDW
 
         mov ship.position.x, 400 - 18
@@ -834,8 +832,8 @@ UpdateThread PROC Param:DWORD
                 .ENDIF
             .ENDIF
             
-            add edi, sizeof ASTEROID
         .ENDIF
+        add edi, sizeof ASTEROID
     .ENDW
 ; Bx + Bw > Ax &&
 ; Bx < Ax + Aw &&
@@ -1056,30 +1054,32 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     CREF_TRANSPARENT
 
     mov edi, 0
-    .WHILE asteroids[edi].tam > 0
-        .if asteroids[edi].tam == 1
-            invoke SelectObject,memDC,asteroid1Bmp
-            mov esi, 40
-        .elseif asteroids[edi].tam == 3
-            invoke SelectObject,memDC,asteroid3Bmp
-            mov esi, 10
-        .elseif asteroids[edi].tam == 2
-            invoke SelectObject,memDC,asteroid2Bmp
-            mov esi, 20
-        .endif
-        invoke TransparentBlt,hDC, \
-        ;paint point
-        asteroids[edi].position.x, asteroids[edi].position.y, \
-        ;asteroid size
-        esi, esi, \
-        memDC, \
-        ;current_sprite
-        0, 0, \
-        ;asteroid size
-        esi, esi, \
-        ;color to be ignored
-        BLACK_COLOR
-	    add edi, sizeof ASTEROID
+    .WHILE edi < 30 * sizeof ASTEROID
+        .IF asteroids[edi].tam > 0
+            .if asteroids[edi].tam == 1
+                invoke SelectObject,memDC,asteroid1Bmp
+                mov esi, 40
+            .elseif asteroids[edi].tam == 3
+                invoke SelectObject,memDC,asteroid3Bmp
+                mov esi, 10
+            .elseif asteroids[edi].tam == 2
+                invoke SelectObject,memDC,asteroid2Bmp
+                mov esi, 20
+            .endif
+            invoke TransparentBlt,hDC, \
+            ;paint point
+            asteroids[edi].position.x, asteroids[edi].position.y, \
+            ;asteroid size
+            esi, esi, \
+            memDC, \
+            ;current_sprite
+            0, 0, \
+            ;asteroid size
+            esi, esi, \
+            ;color to be ignored
+            BLACK_COLOR
+        .ENDIF
+        add edi, sizeof ASTEROID
     .ENDW
 
     ; TODO percorrer todos os projeteis
