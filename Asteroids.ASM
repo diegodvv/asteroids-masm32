@@ -812,19 +812,21 @@ UpdateThread PROC Param:DWORD
             
             mov ebx, asteroids[edi].position.x
             add ebx, esi
+            add ebx, -4
             mov eax, ship.position.x
             .IF SDWORD PTR ebx > SDWORD PTR eax
                 mov ebx, asteroids[edi].position.x
                 mov eax, ship.position.x
-                add eax, 36
+                add eax, 32
                 .IF SDWORD PTR ebx < SDWORD PTR eax
                     mov ebx, asteroids[edi].position.y
                     add ebx, esi
+                    add ebx, -4
                     mov eax, ship.position.y
                     .IF SDWORD PTR ebx > SDWORD PTR eax
                         mov ebx, asteroids[edi].position.y
                         mov eax, ship.position.y
-                        add eax, 36
+                        add eax, 32
                         .IF SDWORD PTR ebx < SDWORD PTR eax
                             mov bateu, 1
                         .ENDIF
