@@ -873,59 +873,61 @@ UpdateThread PROC Param:DWORD
                 mov ebx, asteroids[edi].position.x
                 add ebx, esi
                 add ebx, -4
-                ; // TODO: check if projectile is alive
-                mov eax, shipProjectiles[ecx].position.x
-                .IF SDWORD PTR ebx > SDWORD PTR eax
-                    mov ebx, asteroids[edi].position.x
+                ; check collision only if projectile is alive
+                .IF shipProjectiles[ecx].acceleration.x != -1
                     mov eax, shipProjectiles[ecx].position.x
-                    add eax, 32
-                    .IF SDWORD PTR ebx < SDWORD PTR eax
-                        mov ebx, asteroids[edi].position.y
-                        add ebx, esi
-                        add ebx, -4
-                        mov eax, shipProjectiles[ecx].position.y
-                        .IF SDWORD PTR ebx > SDWORD PTR eax
+                    .IF SDWORD PTR ebx > SDWORD PTR eax
+                        mov ebx, asteroids[edi].position.x
+                        mov eax, shipProjectiles[ecx].position.x
+                        add eax, 32
+                        .IF SDWORD PTR ebx < SDWORD PTR eax
                             mov ebx, asteroids[edi].position.y
+                            add ebx, esi
+                            add ebx, -4
                             mov eax, shipProjectiles[ecx].position.y
-                            add eax, 32
-                            .IF SDWORD PTR ebx < SDWORD PTR eax
-                                dec asteroids[edi].tam
-
-                                mov shipProjectiles[ecx].position.x, -1
-                                mov shipProjectiles[ecx].position.y, -1
-                                mov shipProjectiles[ecx].velocity.x, -1
-                                mov shipProjectiles[ecx].velocity.y, -1
-                                mov shipProjectiles[ecx].acceleration.x, -1
-                                mov shipProjectiles[ecx].acceleration.y, -1
-
-                                mov eax, 0
-                                .WHILE asteroids[eax].tam < 0
-                                    .IF eax == ASTEROIDS_MAX * sizeof ASTEROID
-                                        jmp end_of_asteroids_projectiles_collision_loop
-                                    .ENDIF
-                                    add eax, sizeof ASTEROID
-                                .ENDW
-
-                                m2m asteroids[eax].tam, asteroids[edi].tam
-                                mov ebx, asteroids[edi].velocity.x
-                                neg ebx
-                                mov asteroids[eax].velocity.x, ebx
-
-                                mov ebx, asteroids[edi].velocity.y
-                                neg ebx
-                                mov asteroids[eax].velocity.y, ebx
-
-                                mov ebx, asteroids[edi].position.x
-                                mov asteroids[eax].position.x, ebx
-
+                            .IF SDWORD PTR ebx > SDWORD PTR eax
                                 mov ebx, asteroids[edi].position.y
-                                mov asteroids[eax].position.y, ebx
-                                ; asterpoids[edi].velocity.x *= sqrt(2)/2
-                                ;.IF asteroids[edi].tam == 5
+                                mov eax, shipProjectiles[ecx].position.y
+                                add eax, 32
+                                .IF SDWORD PTR ebx < SDWORD PTR eax
+                                    inc asteroids[edi].tam
 
-                                ;.ENDIF
+                                    mov shipProjectiles[ecx].position.x, -1
+                                    mov shipProjectiles[ecx].position.y, -1
+                                    mov shipProjectiles[ecx].velocity.x, -1
+                                    mov shipProjectiles[ecx].velocity.y, -1
+                                    mov shipProjectiles[ecx].acceleration.x, -1
+                                    mov shipProjectiles[ecx].acceleration.y, -1
 
-                                
+                                    mov eax, 0
+                                    .WHILE asteroids[eax].tam > 0 && asteroids[eax].tam < 4
+                                        .IF eax == ASTEROIDS_MAX * sizeof ASTEROID
+                                            jmp end_of_asteroids_projectiles_collision_loop
+                                        .ENDIF
+                                        add eax, sizeof ASTEROID
+                                    .ENDW
+
+                                    m2m asteroids[eax].tam, asteroids[edi].tam
+                                    mov ebx, asteroids[edi].velocity.x
+                                    neg ebx
+                                    mov asteroids[eax].velocity.x, ebx
+
+                                    mov ebx, asteroids[edi].velocity.y
+                                    neg ebx
+                                    mov asteroids[eax].velocity.y, ebx
+
+                                    mov ebx, asteroids[edi].position.x
+                                    mov asteroids[eax].position.x, ebx
+
+                                    mov ebx, asteroids[edi].position.y
+                                    mov asteroids[eax].position.y, ebx
+                                    ; asterpoids[edi].velocity.x *= sqrt(2)/2
+                                    ;.IF asteroids[edi].tam == 5
+
+                                    ;.ENDIF
+
+                                    
+                                .ENDIF
                             .ENDIF
                         .ENDIF
                     .ENDIF
