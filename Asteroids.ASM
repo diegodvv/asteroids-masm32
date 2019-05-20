@@ -49,6 +49,7 @@ EXPLOSION_FRAME_SIZE equ 26
 PROJECTILE_VELOCITY equ 10
 ASTEROID_MAX_VELOCITY equ 10
 SHOOT_COOLDOWN equ 10
+RESPAWN_COOLDOWN equ 30
 
 CREF_TRANSPARENT  EQU 0FF00FFh
 CREF_TRANSPARENT2 EQU 0FF0000h
@@ -62,12 +63,8 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   hBmp          dd ?
   hFont         dd ?
   memDC2        dd 0 
-  x		          dd 0
-  trasp		      dd 0
-  achou		      dd 0
-  lRect         RECT <>
-  hitpoint 	    POINT <>
-  posicao       POINT <>
+
+  player_lives db 5
   randomnum  db  2 dup (?)
 
   ;shipSprites   POINT {0, 0}, {36, 0}, {72, 0}, {108, 0}
@@ -83,9 +80,9 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   space_down db 0
   up_down db 0
   down_down db 0
-  bateu db 0
+  ship_destroyed db 0
   
-
+  respawn_counter dd 0
   last_shoot_counter dd 0
   shipBmp         dd ?
   space_backgroundBmp dd ?
@@ -108,8 +105,9 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   strEqualNegativeOne db "Not equal to negative one",0
   buffer db 300 dup(?)
   header_format db "Number of asteroids: %d",0
-  header_format_bateu db "BATEU",0
-  header_format_explosion_frame db "explosions[0].frame: %d"
+  header_format_ship_destroyed db "BATEU",0
+  header_format_explosion_frame db "explosions[0].frame: %d",0
+  format_number_of_lives db "Lives: %d",0
 
   EventStop BOOL FALSE
 ; #########################################################################
@@ -300,6 +298,22 @@ UpdateThread PROC Param:DWORD
     .IF last_shoot_counter < SHOOT_COOLDOWN
         inc last_shoot_counter
     .ENDIF
+
+    .IF ship_destroyed
+        .IF respawn_counter < RESPAWN_COOLDOWN
+            inc respawn_counter
+        .ELSE
+            mov respawn_counter, 0
+            mov ship.position.x, (SCREEN_WIDTH/2) - 18
+            mov ship.position.y, (SCREEN_HEIGHT/2) - 18
+            mov ship.velocity.x, 0
+            mov ship.velocity.y, 0
+            mov ship_destroyed, 0
+        .ENDIF
+    .ENDIF
+
+    ; // TODO: Spawn random asteroids
+    ; // TODO: If lives gets to 0, gameover screen
 
     .if left_down == 1
         .if shipSpritesIndex == 15
@@ -773,40 +787,6 @@ UpdateThread PROC Param:DWORD
         mov ship.position.y, SCREEN_HEIGHT
     .endif
 
-    mov edi, 0
-    .WHILE shipProjectiles[edi].position.x != -1
-      mov eax, shipProjectiles[edi].velocity.x
-      add shipProjectiles[edi].position.x, eax
-
-      mov eax, shipProjectiles[edi].velocity.y
-      add shipProjectiles[edi].position.y, eax
-
-      .if shipProjectiles[edi].position.x > SCREEN_WIDTH+50
-          jmp clean_projectile
-      .elseif shipProjectiles[edi].position.x < SDWORD PTR esi
-          jmp clean_projectile
-      .elseif shipProjectiles[edi].position.y > SCREEN_HEIGHT+50
-          jmp clean_projectile
-      .elseif shipProjectiles[edi].position.y < SDWORD PTR esi
-          jmp clean_projectile
-      .else 
-          jmp end_of_loop
-      .endif
-
-    clean_projectile:
-        mov shipProjectiles[edi].position.x, -1
-        mov shipProjectiles[edi].position.y, -1
-        mov shipProjectiles[edi].velocity.x, -1
-        mov shipProjectiles[edi].velocity.y, -1
-        mov shipProjectiles[edi].acceleration.x, -1
-        mov shipProjectiles[edi].acceleration.y, -1
-
-    end_of_loop:
-        add edi, 24
-    .ENDW
-
-    mov bateu, 0
-
 	mov edi, 0
     .WHILE edi < ASTEROIDS_MAX * sizeof ASTEROID
         .IF asteroids[edi].tam > 0
@@ -838,25 +818,29 @@ UpdateThread PROC Param:DWORD
                 mov esi, 10
             .endif
             
-            mov ebx, asteroids[edi].position.x
-            add ebx, esi
-            add ebx, -4
-            mov eax, ship.position.x
-            .IF SDWORD PTR ebx > SDWORD PTR eax
+            ; collision ship asteroids
+            .IF !ship_destroyed
                 mov ebx, asteroids[edi].position.x
+                add ebx, esi
+                add ebx, -4
                 mov eax, ship.position.x
-                add eax, 32
-                .IF SDWORD PTR ebx < SDWORD PTR eax
-                    mov ebx, asteroids[edi].position.y
-                    add ebx, esi
-                    add ebx, -4
-                    mov eax, ship.position.y
-                    .IF SDWORD PTR ebx > SDWORD PTR eax
+                .IF SDWORD PTR ebx > SDWORD PTR eax
+                    mov ebx, asteroids[edi].position.x
+                    mov eax, ship.position.x
+                    add eax, 32
+                    .IF SDWORD PTR ebx < SDWORD PTR eax
                         mov ebx, asteroids[edi].position.y
+                        add ebx, esi
+                        add ebx, -4
                         mov eax, ship.position.y
-                        add eax, 32
-                        .IF SDWORD PTR ebx < SDWORD PTR eax
-                            mov bateu, 1
+                        .IF SDWORD PTR ebx > SDWORD PTR eax
+                            mov ebx, asteroids[edi].position.y
+                            mov eax, ship.position.y
+                            add eax, 32
+                            .IF SDWORD PTR ebx < SDWORD PTR eax
+                                mov ship_destroyed, 1
+                                dec player_lives
+                            .ENDIF
                         .ENDIF
                     .ENDIF
                 .ENDIF
@@ -865,10 +849,42 @@ UpdateThread PROC Param:DWORD
         .ENDIF
         add edi, sizeof ASTEROID
     .ENDW
-; Bx + Bw > Ax &&
-; Bx < Ax + Aw &&
-; By + Bh > Ay && 
-; By < Ay + Ah
+    ; Bx + Bw > Ax &&
+    ; Bx < Ax + Aw &&
+    ; By + Bh > Ay && 
+    ; By < Ay + Ah
+
+    mov edi, 0
+    .WHILE shipProjectiles[edi].position.x != -1
+      mov eax, shipProjectiles[edi].velocity.x
+      add shipProjectiles[edi].position.x, eax
+
+      mov eax, shipProjectiles[edi].velocity.y
+      add shipProjectiles[edi].position.y, eax
+
+      .if shipProjectiles[edi].position.x > SCREEN_WIDTH+50
+          jmp clean_projectile
+      .elseif shipProjectiles[edi].position.x < SDWORD PTR esi
+          jmp clean_projectile
+      .elseif shipProjectiles[edi].position.y > SCREEN_HEIGHT+50
+          jmp clean_projectile
+      .elseif shipProjectiles[edi].position.y < SDWORD PTR esi
+          jmp clean_projectile
+      .else 
+          jmp end_of_loop
+      .endif
+
+    clean_projectile:
+        mov shipProjectiles[edi].position.x, -1
+        mov shipProjectiles[edi].position.y, -1
+        mov shipProjectiles[edi].velocity.x, -1
+        mov shipProjectiles[edi].velocity.y, -1
+        mov shipProjectiles[edi].acceleration.x, -1
+        mov shipProjectiles[edi].acceleration.y, -1
+
+    end_of_loop:
+        add edi, 24
+    .ENDW
 
     ; Collision of asteroids with projectiles
     mov edi, 0
@@ -982,9 +998,6 @@ WndProc proc hWin   :DWORD,
     ;======== menu commands ========
 		
     .elseif uMsg == WM_CREATE
-	  	mov posicao.x,200
-		mov posicao.y,0
-		
 		;invoke CreateEvent,NULL,FALSE,FALSE,NULL
 		;mov    hEventStart,eax
 		
@@ -1006,40 +1019,8 @@ WndProc proc hWin   :DWORD,
     ;    // obter o tamanho da janela
     
     .elseif uMsg == WM_MOUSEMOVE
-        mov eax,lParam
-        and eax,0ffffh
-        mov hitpoint.x,eax
-        mov eax,lParam
-        shr eax,16
-        mov hitpoint.y,eax
-        invoke InvalidateRect,hWnd,NULL,TRUE
     
     .elseif uMsg == WM_LBUTTONDOWN
-		mov eax,lParam
-		and eax,0ffffh
-		mov hitpoint.x,eax
-		mov eax,lParam
-		shr eax,16
-		mov hitpoint.y,eax
-		
-		mov eax, trasp 
-		not	eax
-		mov trasp, eax
-
-		mov	achou,1
-		mov 	eax,hitpoint.x
-		cmp	eax,140
-		jb	nao
-		cmp	eax,172
-		jg	nao
-		mov 	ecx,hitpoint.y
-		cmp	ecx,250
-		jb	nao
-		cmp	ecx,282
-		jg	nao
-		mov	achou,0
-	nao:	
-		invoke InvalidateRect,hWnd,NULL,TRUE
 
     .elseif uMsg == WM_PAINT
         invoke BeginPaint,hWin,ADDR Ps
@@ -1052,15 +1033,6 @@ WndProc proc hWin   :DWORD,
     .elseif uMsg == WM_CLOSE
     
     .elseif uMsg == WM_CHAR
-	    inc	x
-	    mov	eax,x
-	    mov	lRect.left, eax
-	    add	eax,168
-	    mov	lRect.right, eax
-	    mov	lRect.top,10
-	    mov	lRect.bottom, 68
-	    
-	    invoke InvalidateRect, hWnd, addr lRect,TRUE
 
    .elseif uMsg == WM_RBUTTONDOWN
    	;invoke PostMessage,hWnd,WM_FINISH,NULL,NULL
@@ -1094,13 +1066,6 @@ WndProc proc hWin   :DWORD,
    
    .elseif uMsg == WM_FINISH
 
-	inc posicao.x
-	inc posicao.y
-
-	.if posicao.x > 400
-	   mov posicao.x,0
-	   mov posicao.y,0
-	.endif 
 	invoke InvalidateRect,hWnd,NULL,TRUE	     
     .elseif uMsg == WM_DESTROY
     	mov  EventStop,TRUE
@@ -1141,10 +1106,6 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     ;invoke SelectObject,memDC,hBmp
     ;mov hOld, eax
 
-    ;invoke BitBlt,hDC,10,10,166,68,memDC,20,0,SRCCOPY
-    ;invoke BitBlt,hDC, hitpoint.x,hitpoint.y,166,68,memDC,0,0,SRCCOPY
-    ;invoke BitBlt,hDC,10,200,166,68,memDC,0,0,SRCCOPY
-
     ;invoke SelectObject,hDC,hOld
     
     invoke SelectObject,memDC,space_backgroundBmp ; select background
@@ -1159,19 +1120,21 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     mov eax, 36
     mul shipSpritesIndex
 
-    ; paint the ship
-    invoke TransparentBlt,hDC, \
-    ;paint point
-    ship.position.x, ship.position.y, \
-    ;ship size
-    36,36, \
-    memDC, \
-    ;current_sprite
-    eax, 0, \
-    ;ship size
-    36,36, \
-    ;color to be ignored
-    CREF_TRANSPARENT
+    ; paint the ship if it's not destroyed
+    .IF !ship_destroyed
+        invoke TransparentBlt,hDC, \
+        ;paint point
+        ship.position.x, ship.position.y, \
+        ;ship size
+        36,36, \
+        memDC, \
+        ;current_sprite
+        eax, 0, \
+        ;ship size
+        36,36, \
+        ;color to be ignored
+        CREF_TRANSPARENT
+    .ENDIF
 
     mov edi, 0
     .WHILE edi < ASTEROIDS_MAX * sizeof ASTEROID
@@ -1261,6 +1224,9 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         add esi, sizeof EXPLOSION
     .ENDW
     
+    invoke wsprintfA, ADDR buffer, ADDR format_number_of_lives, player_lives
+    invoke ExtTextOutA, hDC,300, 0, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+
     ; debug
     invoke SetTextColor, memDC, WHITE_COLOR
     invoke SetBkColor, memDC, BLACK_COLOR
@@ -1283,7 +1249,7 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     invoke wsprintfA, ADDR buffer, ADDR header_format_explosion_frame, explosions[0].frame
     invoke ExtTextOutA, hDC,100, 150, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
 
-    ;.IF !bateu
+    ;.IF !ship_destroyed
     ;    mov esi, ship.position.x
     ;    neg esi
     ;    add esi, SCREEN_WIDTH - 36
@@ -1295,7 +1261,7 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     ;    invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
     ;    ;invoke TextOutA, hDC, 100, 100, ADDR buffer, eax
     ;.ELSE
-    ;    invoke wsprintfA, ADDR buffer, ADDR header_format_bateu
+    ;    invoke wsprintfA, ADDR buffer, ADDR header_format_ship_destroyed
     ;    invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
     ;.ENDIF
 
