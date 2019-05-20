@@ -66,7 +66,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   shipSpritesIndex  dd 2
   ship BODY {{10, 10}, {0, 0}, {0, 0}}
   shipMaxVelocity POINT {10, 10}
-  shipProjectiles BODY 30 dup ({{-1, 2}, {3, 4}, {5, 6}})
+  shipProjectiles BODY 30 dup ({{-1, 2}, {3, 4}, {-1, -1}})
   asteroids ASTEROID ASTEROIDS_MAX dup ({{-1, -1}, {1, 1}, 1})
   UpdateThreadID dd 0
   left_down db 0
@@ -96,7 +96,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   error_string db "Error loading image",0
   strEqualNegativeOne db "Not equal to negative one",0
   buffer db 300 dup(?)
-  header_format db "left: %d right:%d top:%d bottom:%d",0
+  header_format db "Number of asteroids: %d",0
   header_format_bateu db "BATEU",0
 
   EventStop BOOL FALSE
@@ -277,6 +277,7 @@ WinMain endp
 
 ; #########################################################################
 
+; // MARK : UpdateThread
 UpdateThread PROC Param:DWORD
     invoke Sleep, 1000/24
     mov esi, -50
@@ -441,10 +442,8 @@ UpdateThread PROC Param:DWORD
         .IF last_shoot_counter == SHOOT_COOLDOWN
             mov last_shoot_counter, 0
             
-
-
             mov edi, 0
-            .WHILE shipProjectiles[edi].position.x != -1 ; Find an empty slot in the array
+            .WHILE shipProjectiles[edi].acceleration.x != -1 ; Find an empty slot in the array
                 add edi, 24
             .ENDW
             mov esi, PROJECTILE_VELOCITY
@@ -694,6 +693,8 @@ UpdateThread PROC Param:DWORD
 
                 mov shipProjectiles[edi].velocity.x, eax
             .endif
+
+            mov shipProjectiles[edi].acceleration.x, 1
         .ENDIF
     .endif
 
@@ -792,7 +793,7 @@ UpdateThread PROC Param:DWORD
     mov bateu, 0
 
 	mov edi, 0
-    .WHILE edi < 30 * sizeof ASTEROID
+    .WHILE edi < ASTEROIDS_MAX * sizeof ASTEROID
         .IF asteroids[edi].tam > 0
             mov eax, asteroids[edi].velocity.x
             add asteroids[edi].position.x, eax
@@ -856,7 +857,7 @@ UpdateThread PROC Param:DWORD
 
     ; Collision of asteroids with projectiles
     mov edi, 0
-    .WHILE edi < 30 * sizeof ASTEROID
+    .WHILE edi < ASTEROIDS_MAX * sizeof ASTEROID
         .IF asteroids[edi].tam > 0
 
             .if asteroids[edi].tam == 1
@@ -872,6 +873,7 @@ UpdateThread PROC Param:DWORD
                 mov ebx, asteroids[edi].position.x
                 add ebx, esi
                 add ebx, -4
+                ; // TODO: check if projectile is alive
                 mov eax, shipProjectiles[ecx].position.x
                 .IF SDWORD PTR ebx > SDWORD PTR eax
                     mov ebx, asteroids[edi].position.x
@@ -898,7 +900,7 @@ UpdateThread PROC Param:DWORD
 
                                 mov eax, 0
                                 .WHILE asteroids[eax].tam < 0
-                                    .IF eax == 30 * sizeof ASTEROID
+                                    .IF eax == ASTEROIDS_MAX * sizeof ASTEROID
                                         jmp end_of_asteroids_projectiles_collision_loop
                                     .ENDIF
                                     add eax, sizeof ASTEROID
@@ -1151,30 +1153,32 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     CREF_TRANSPARENT
 
     mov edi, 0
-    .WHILE edi < 30 * sizeof ASTEROID
+    .WHILE edi < ASTEROIDS_MAX * sizeof ASTEROID
         .IF asteroids[edi].tam > 0
-            .if asteroids[edi].tam == 1
-                invoke SelectObject,memDC,asteroid1Bmp
-                mov esi, 40
-            .elseif asteroids[edi].tam == 3
-                invoke SelectObject,memDC,asteroid3Bmp
-                mov esi, 10
-            .elseif asteroids[edi].tam == 2
-                invoke SelectObject,memDC,asteroid2Bmp
-                mov esi, 20
-            .endif
-            invoke TransparentBlt,hDC, \
-            ;paint point
-            asteroids[edi].position.x, asteroids[edi].position.y, \
-            ;asteroid size
-            esi, esi, \
-            memDC, \
-            ;current_sprite
-            0, 0, \
-            ;asteroid size
-            esi, esi, \
-            ;color to be ignored
-            BLACK_COLOR
+            .IF asteroids[edi].tam < 4
+                .if asteroids[edi].tam == 1
+                    invoke SelectObject,memDC,asteroid1Bmp
+                    mov esi, 40
+                .elseif asteroids[edi].tam == 3
+                    invoke SelectObject,memDC,asteroid3Bmp
+                    mov esi, 10
+                .elseif asteroids[edi].tam == 2
+                    invoke SelectObject,memDC,asteroid2Bmp
+                    mov esi, 20
+                .endif
+                invoke TransparentBlt,hDC, \
+                ;paint point
+                asteroids[edi].position.x, asteroids[edi].position.y, \
+                ;asteroid size
+                esi, esi, \
+                memDC, \
+                ;current_sprite
+                0, 0, \
+                ;asteroid size
+                esi, esi, \
+                ;color to be ignored
+                BLACK_COLOR
+            .ENDIF
         .ENDIF
         add edi, sizeof ASTEROID
     .ENDW
@@ -1182,22 +1186,23 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     ; TODO percorrer todos os projeteis
     invoke SelectObject,memDC,projectileBmp ; select projectile image
     mov edi, 0
-    .WHILE shipProjectiles[edi].position.x != -1
-        ; paint the ship
-        invoke TransparentBlt,hDC, \
-        ;paint point
-        shipProjectiles[edi].position.x, shipProjectiles[edi].position.y, \
-        ;proj size
-        5,5, \
-        memDC, \
-        ;current_sprite
-        0, 0, \
-        ;proj size
-        5,5, \
-        ;color to be ignored
-        BLACK_COLOR
-
-        add edi, 24
+    .WHILE edi < 30 * sizeof BODY
+        .IF shipProjectiles[edi].acceleration.x != -1
+            ; paint the ship
+            invoke TransparentBlt,hDC, \
+            ;paint point
+            shipProjectiles[edi].position.x, shipProjectiles[edi].position.y, \
+            ;proj size
+            5,5, \
+            memDC, \
+            ;current_sprite
+            0, 0, \
+            ;proj size
+            5,5, \
+            ;color to be ignored
+            BLACK_COLOR
+        .ENDIF
+        add edi, sizeof BODY
     .ENDW
 
     invoke SelectObject,memDC,asteroid1Bmp
@@ -1219,21 +1224,34 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     invoke SetBkColor, memDC, BLACK_COLOR
     invoke SelectObject, memDC, hFont
 
-    .IF !bateu
-        mov esi, ship.position.x
-        neg esi
-        add esi, SCREEN_WIDTH - 36
+    mov eax, 0
+    mov esi, 0
+    .WHILE esi < sizeof ASTEROID * ASTEROIDS_MAX
+        .IF asteroids[esi].tam < 4
+            .IF asteroids[esi].tam > 0
+                inc eax
+            .ENDIF
+        .ENDIF
+        add esi, sizeof ASTEROID
+    .ENDW
 
-        mov edi, ship.position.y
-        neg edi
-        add edi, SCREEN_WIDTH - 36
-        invoke wsprintfA, ADDR buffer, ADDR header_format, ship.position.x, esi, ship.position.y, edi
-        invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
-        ;invoke TextOutA, hDC, 100, 100, ADDR buffer, eax
-    .ELSE
-        invoke wsprintfA, ADDR buffer, ADDR header_format_bateu
-        invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
-    .ENDIF
+    invoke wsprintfA, ADDR buffer, ADDR header_format, eax
+    invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+    ;.IF !bateu
+    ;    mov esi, ship.position.x
+    ;    neg esi
+    ;    add esi, SCREEN_WIDTH - 36
+
+    ;    mov edi, ship.position.y
+    ;    neg edi
+    ;    add edi, SCREEN_WIDTH - 36
+    ;    invoke wsprintfA, ADDR buffer, ADDR header_format, ship.position.x, esi, ship.position.y, edi
+    ;    invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+    ;    ;invoke TextOutA, hDC, 100, 100, ADDR buffer, eax
+    ;.ELSE
+    ;    invoke wsprintfA, ADDR buffer, ADDR header_format_bateu
+    ;    invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+    ;.ENDIF
 
     invoke DeleteDC,memDC
     return 0
