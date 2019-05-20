@@ -18,6 +18,10 @@ BODY STRUCT
     acceleration POINT <>
 BODY ENDS
 
+EXPLOSION STRUCT
+    position POINT <>
+    frame db -1
+EXPLOSION ENDS
 
 .const
 SCREEN_WIDTH equ 800
@@ -31,12 +35,16 @@ asteroid1BmpId equ 102
 asteroid2BmpId equ 103
 asteroid3BmpId equ 104
 projectileBmpId equ 105
+explosionBmpId equ 106
 
 BLACK_COLOR equ 0000000h
 WHITE_COLOR equ 0ffffffh
 
 ASTEROIDS_INIT equ 20
 ASTEROIDS_MAX equ ASTEROIDS_INIT * 3
+EXPLOSIONS_MAX equ 15
+EXPLOSION_FRAME_SIZE equ 26
+
 
 PROJECTILE_VELOCITY equ 10
 ASTEROID_MAX_VELOCITY equ 10
@@ -68,6 +76,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   shipMaxVelocity POINT {10, 10}
   shipProjectiles BODY 30 dup ({{-1, 2}, {3, 4}, {-1, -1}})
   asteroids ASTEROID ASTEROIDS_MAX dup ({{-1, -1}, {1, 1}, 1})
+  explosions EXPLOSION EXPLOSIONS_MAX dup ({{0, 0}, -1})
   UpdateThreadID dd 0
   left_down db 0
   right_down db 0
@@ -75,6 +84,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   up_down db 0
   down_down db 0
   bateu db 0
+  
 
   last_shoot_counter dd 0
   shipBmp         dd ?
@@ -83,6 +93,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   asteroid2Bmp dd ?
   asteroid3Bmp dd ?
   projectileBmp dd ?
+  explosionBmp dd ?
 
 	ExitCode dd 0
 	hThread dd 0
@@ -98,6 +109,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   buffer db 300 dup(?)
   header_format db "Number of asteroids: %d",0
   header_format_bateu db "BATEU",0
+  header_format_explosion_frame db "explosions[0].frame: %d"
 
   EventStop BOOL FALSE
 ; #########################################################################
@@ -129,6 +141,9 @@ start:
 
       invoke LoadBitmap,hInstance, projectileBmpId
       mov projectileBmp, eax
+
+      invoke LoadBitmap, hInstance, explosionBmpId
+      mov explosionBmp, eax
 
       ; Retrieve a handle to the variable stock font.  
       invoke GetStockObject, DEVICE_DEFAULT_FONT
@@ -858,7 +873,7 @@ UpdateThread PROC Param:DWORD
     ; Collision of asteroids with projectiles
     mov edi, 0
     .WHILE edi < ASTEROIDS_MAX * sizeof ASTEROID
-        .IF asteroids[edi].tam > 0
+        .IF asteroids[edi].tam > 0 && asteroids[edi].tam < 4
 
             .if asteroids[edi].tam == 1
                 mov esi, 40
@@ -892,6 +907,16 @@ UpdateThread PROC Param:DWORD
                                 .IF SDWORD PTR ebx < SDWORD PTR eax
                                     inc asteroids[edi].tam
 
+                                    ; add explosion
+                                    mov eax, 0
+                                    .WHILE explosions[eax].frame < 39 && explosions[eax].frame != -1
+                                        add eax, sizeof EXPLOSION
+                                    .ENDW
+
+                                    m2m explosions[eax].position.x, asteroids[edi].position.x
+                                    m2m explosions[eax].position.y, asteroids[edi].position.y
+                                    mov explosions[eax].frame, 0
+
                                     mov shipProjectiles[ecx].position.x, -1
                                     mov shipProjectiles[ecx].position.y, -1
                                     mov shipProjectiles[ecx].velocity.x, -1
@@ -920,13 +945,7 @@ UpdateThread PROC Param:DWORD
                                     mov asteroids[eax].position.x, ebx
 
                                     mov ebx, asteroids[edi].position.y
-                                    mov asteroids[eax].position.y, ebx
-                                    ; asterpoids[edi].velocity.x *= sqrt(2)/2
-                                    ;.IF asteroids[edi].tam == 5
-
-                                    ;.ENDIF
-
-                                    
+                                    mov asteroids[eax].position.y, ebx                                    
                                 .ENDIF
                             .ENDIF
                         .ENDIF
@@ -1109,7 +1128,7 @@ TopXY proc wDim:DWORD, sDim:DWORD
 TopXY endp
 
 ; #########################################################################
-
+; // MARK: Paint_Proc
 Paint_Proc proc hWin:DWORD, hDC:DWORD
 
     LOCAL hOld:DWORD
@@ -1185,7 +1204,6 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         add edi, sizeof ASTEROID
     .ENDW
 
-    ; TODO percorrer todos os projeteis
     invoke SelectObject,memDC,projectileBmp ; select projectile image
     mov edi, 0
     .WHILE edi < 30 * sizeof BODY
@@ -1207,21 +1225,43 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         add edi, sizeof BODY
     .ENDW
 
-    invoke SelectObject,memDC,asteroid1Bmp
-    ;invoke BitBlt, hDC, 0, 0, 10, 10, memDC, 0, 0, SRCCOPY
-    ;invoke TransparentBlt, hDC, 0, 0, 50, 50, memDC, 0, 0, 50, 50, CREF_TRANSPARENT
-    
-    ;invoke SelectObject,memDC,hBmp2  ; selecionei o novo bitmap
-    ;mov hOld, eax
-          
-    ;invoke BitBlt,hDC,50,250,32,32,memDC,0,0,SRCCOPY
-    ;invoke BitBlt,hDC,90,250,32,32,memDC,0,416,SRCCOPY
-    ;invoke BitBlt,hDC,140,250,32,32,memDC,0,416,SRCCOPY
-    
-    ;INVOKE  TransparentBlt,hDC,190,250,32,32,memDC,0,256,32,32,CREF_TRANSPARENT
-    
-    ;INVOKE  TransparentBlt,hDC,240,250,32,32,memDC,0,512,32,32,CREF_TRANSPARENT
+    ; explosions
+    invoke SelectObject, memDC, explosionBmp
 
+    mov esi, 0
+    .WHILE esi < EXPLOSIONS_MAX * sizeof EXPLOSION
+        .IF explosions[esi].frame < 39
+            ; paint the explosion
+            mov eax, EXPLOSION_FRAME_SIZE
+            mul explosions[esi].frame
+
+
+            invoke TransparentBlt,hDC, \
+            ;paint point
+            explosions[esi].position.x, explosions[esi].position.y, \
+            ;explosion size
+            EXPLOSION_FRAME_SIZE,EXPLOSION_FRAME_SIZE, \
+            memDC, \
+            ;current_sprite
+            eax, 0, \
+            ;explosion size
+            EXPLOSION_FRAME_SIZE,EXPLOSION_FRAME_SIZE, \
+            ;color to be ignored
+            CREF_TRANSPARENT
+
+            ;mov eax, offset explosions
+            ;add eax, edi
+            ;add eax, 8
+            ;add byte ptr [eax], 1
+            mov al, explosions[esi].frame
+            inc al
+            mov explosions[esi].frame, al
+        .ENDIF
+
+        add esi, sizeof EXPLOSION
+    .ENDW
+    
+    ; debug
     invoke SetTextColor, memDC, WHITE_COLOR
     invoke SetBkColor, memDC, BLACK_COLOR
     invoke SelectObject, memDC, hFont
@@ -1239,6 +1279,10 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
 
     invoke wsprintfA, ADDR buffer, ADDR header_format, eax
     invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+
+    invoke wsprintfA, ADDR buffer, ADDR header_format_explosion_frame, explosions[0].frame
+    invoke ExtTextOutA, hDC,100, 150, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+
     ;.IF !bateu
     ;    mov esi, ship.position.x
     ;    neg esi
