@@ -314,6 +314,12 @@ UpdateThread PROC Param:DWORD
 
     ; // TODO: Spawn random asteroids
     ; // TODO: If lives gets to 0, gameover screen
+    ; // TODO: add point score counter
+    ; // TODO: splash screen
+    ; // TODO: ship explosion whe collision happens
+    ; // TODO: fix collision with non existing objects --- check
+    ; // TODO: fix shooting even when is dead --- check
+    ; // TODO: set rotation to up when spawning and respawning
 
     .if left_down == 1
         .if shipSpritesIndex == 15
@@ -468,7 +474,7 @@ UpdateThread PROC Param:DWORD
     .endif
   
     .if space_down == 1
-        .IF last_shoot_counter == SHOOT_COOLDOWN
+        .IF last_shoot_counter == SHOOT_COOLDOWN && !ship_destroyed
             mov last_shoot_counter, 0
             
             mov edi, 0
@@ -789,7 +795,7 @@ UpdateThread PROC Param:DWORD
 
 	mov edi, 0
     .WHILE edi < ASTEROIDS_MAX * sizeof ASTEROID
-        .IF asteroids[edi].tam > 0
+        .IF asteroids[edi].tam > 0 && asteroids[edi].tam < 4
             mov eax, asteroids[edi].velocity.x
             add asteroids[edi].position.x, eax
 
@@ -887,7 +893,7 @@ UpdateThread PROC Param:DWORD
     .ENDW
 
     ; Collision of asteroids with projectiles
-    mov edi, 0
+    mov edi, 0        
     .WHILE edi < ASTEROIDS_MAX * sizeof ASTEROID
         .IF asteroids[edi].tam > 0 && asteroids[edi].tam < 4
 
@@ -924,14 +930,14 @@ UpdateThread PROC Param:DWORD
                                     inc asteroids[edi].tam
 
                                     ; add explosion
-                                    mov eax, 0
-                                    .WHILE explosions[eax].frame < 39 && explosions[eax].frame != -1
-                                        add eax, sizeof EXPLOSION
+                                    mov esi, 0
+                                    .WHILE explosions[esi].frame < 39 && explosions[esi].frame != -1
+                                        add esi, sizeof EXPLOSION
                                     .ENDW
 
-                                    m2m explosions[eax].position.x, asteroids[edi].position.x
-                                    m2m explosions[eax].position.y, asteroids[edi].position.y
-                                    mov explosions[eax].frame, 0
+                                    m2m explosions[esi].position.x, asteroids[edi].position.x
+                                    m2m explosions[esi].position.y, asteroids[edi].position.y
+                                    mov explosions[esi].frame, 0
 
                                     mov shipProjectiles[ecx].position.x, -1
                                     mov shipProjectiles[ecx].position.y, -1
@@ -940,34 +946,35 @@ UpdateThread PROC Param:DWORD
                                     mov shipProjectiles[ecx].acceleration.x, -1
                                     mov shipProjectiles[ecx].acceleration.y, -1
 
-                                    mov eax, 0
-                                    .WHILE asteroids[eax].tam > 0 && asteroids[eax].tam < 4
-                                        .IF eax == ASTEROIDS_MAX * sizeof ASTEROID
+                                    mov esi, 0
+                                    .WHILE asteroids[esi].tam > 0 && asteroids[esi].tam < 4
+                                        .IF esi == ASTEROIDS_MAX * sizeof ASTEROID
                                             jmp end_of_asteroids_projectiles_collision_loop
                                         .ENDIF
-                                        add eax, sizeof ASTEROID
+                                        add esi, sizeof ASTEROID
                                     .ENDW
 
-                                    m2m asteroids[eax].tam, asteroids[edi].tam
+                                    m2m asteroids[esi].tam, asteroids[edi].tam
                                     mov ebx, asteroids[edi].velocity.x
                                     neg ebx
-                                    mov asteroids[eax].velocity.x, ebx
+                                    mov asteroids[esi].velocity.x, ebx
 
                                     mov ebx, asteroids[edi].velocity.y
                                     neg ebx
-                                    mov asteroids[eax].velocity.y, ebx
+                                    mov asteroids[esi].velocity.y, ebx
 
                                     mov ebx, asteroids[edi].position.x
-                                    mov asteroids[eax].position.x, ebx
+                                    mov asteroids[esi].position.x, ebx
 
                                     mov ebx, asteroids[edi].position.y
-                                    mov asteroids[eax].position.y, ebx                                    
+                                    mov asteroids[esi].position.y, ebx         
+                                    jmp end_of_asteroids_projectiles_collision_loop2                           
                                 .ENDIF
                             .ENDIF
                         .ENDIF
                     .ENDIF
                 .ENDIF
-                
+                end_of_asteroids_projectiles_collision_loop2:
                 add ecx, sizeof BODY
             .ENDW
         .ENDIF
