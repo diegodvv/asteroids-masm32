@@ -324,6 +324,8 @@ UpdateThread PROC Param:DWORD
     ; // TODO: set rotation to up when spawning and respawning --- check
     ; // TODO: be immortal for a few seconds when respawning
     ; // TODO: fix shot freeze in the air --- check
+    ; // TODO: Make newer asteroids when wave ends
+    ; // TODO: Prevent rotating when dead
 
     .if left_down == 1
         .if shipSpritesIndex == 15
@@ -855,6 +857,20 @@ UpdateThread PROC Param:DWORD
                                 mov ship_destroyed, 1
                                 mov shipSpritesIndex, 0
                                 dec player_lives
+
+                                ; add explosion
+                                mov esi, 0
+                                .WHILE explosions[esi].frame < 39 && explosions[esi].frame != -1
+                                    add esi, sizeof EXPLOSION
+                                .ENDW
+
+                                mov eax, ship.position.x
+                                add eax, 36/2 - EXPLOSION_FRAME_SIZE/2
+                                mov explosions[esi].position.x, eax ; 
+                                mov eax, ship.position.y
+                                add eax, 36/2 - EXPLOSION_FRAME_SIZE/2
+                                mov explosions[esi].position.y, eax
+                                mov explosions[esi].frame, 0
                             .ENDIF
                         .ENDIF
                     .ENDIF
