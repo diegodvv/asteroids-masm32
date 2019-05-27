@@ -39,6 +39,7 @@ explosionBmpId equ 106
 prepareBmpId equ 107
 titleBmpId equ 108
 game_overBmpId equ 109
+aperte_enterBmpId equ 110
 
 BLACK_COLOR equ 0000000h
 WHITE_COLOR equ 0ffffffh
@@ -82,13 +83,15 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   explosions EXPLOSION EXPLOSIONS_MAX dup ({{0, 0}, -1})
   UpdateThreadID dd 0
   create_asteroidsID dd 0
+
   left_down db 0
   right_down db 0
   space_down db 0
   up_down db 0
   down_down db 0
+  enter_up db 0
+
   ship_destroyed db 0
-  
   game_over dd 0
   respawn_counter dd 0
   last_shoot_counter dd 0
@@ -97,6 +100,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   shipBmp         dd ?
   game_overBmp dd ?
   space_backgroundBmp dd ?
+  aperte_enterBmp dd ?
   prepareBmp dd ?
   titleBmp dd ?
   asteroid1Bmp dd ?
@@ -153,7 +157,10 @@ start:
       mov game_overBmp, eax
 
       invoke LoadBitmap,hInstance, space_backgroundBmpId
-      mov space_backgroundBmp, eax
+      mov space_backgroundBmp, eax 
+
+      invoke LoadBitmap,hInstance, aperte_enterBmpId
+      mov aperte_enterBmp, eax
 
       .if space_backgroundBmp == NULL
         invoke MessageBox, NULL, ADDR error_string, ADDR szDisplayName, MB_OK
@@ -199,8 +206,6 @@ asteroids_length proc
     .ENDW
     return eax
 asteroids_length endp
-
-
 
 create_asteroids proc
     mov creating_asteroids, 1
@@ -422,8 +427,8 @@ UpdateThread PROC Param:DWORD
         .ENDIF
     .endif
 
-    ; // TODO: If lives gets to 0, gameover screen
-    ; // TODO: splash screen
+    ; // TODO: If lives gets to 0, gameover screen --- check
+    ; // TODO: initial screen
     ; // TODO: paint partial sprites when on limits of screen
     ; // TODO: projectiles pass to other side of screen
     ; // TODO: image of ship with engine on (Fuka working on it)
@@ -1250,6 +1255,8 @@ WndProc proc hWin   :DWORD,
             mov up_down, 0
         .elseif wParam == VK_DOWN
             mov down_down, 0
+        .elseif wParam == VK_RETURN
+            mov enter_up, 1
         .endif
    
    .elseif uMsg == WM_FINISH
@@ -1351,7 +1358,7 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
                     ;asteroid size
                     esi, esi, \
                     ;color to be ignored
-                    BLACK_COLOR
+                    CREF_TRANSPARENT
                 .ENDIF
             .ENDIF
             add edi, sizeof ASTEROID
@@ -1464,6 +1471,21 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         0, 0, \
         ;proj size
         239,32, \
+        ;color to be ignored
+        CREF_TRANSPARENT
+
+        invoke SelectObject,memDC,aperte_enterBmp
+        ; paint the ship
+        invoke TransparentBlt,hDC, \
+        ;paint point
+        400 - 392/2, 400, \
+        ;proj size
+        392,28, \
+        memDC, \
+        ;current_sprite
+        0, 0, \
+        ;proj size
+        392,28, \
         ;color to be ignored
         CREF_TRANSPARENT
     .endif
