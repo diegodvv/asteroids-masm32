@@ -40,7 +40,8 @@ explosionBmpId equ 106
 BLACK_COLOR equ 0000000h
 WHITE_COLOR equ 0ffffffh
 
-ASTEROIDS_INIT equ 20
+SLEEP_ASTEROID equ 15
+ASTEROIDS_INIT equ 15
 ASTEROIDS_MAX equ ASTEROIDS_INIT * 3
 EXPLOSIONS_MAX equ 15
 EXPLOSION_FRAME_SIZE equ 26
@@ -50,6 +51,8 @@ PROJECTILE_VELOCITY equ 10
 ASTEROID_MAX_VELOCITY equ 10
 SHOOT_COOLDOWN equ 10
 RESPAWN_COOLDOWN equ 30
+IMMORTAL_COOLDOWN equ 100
+FLICK_COOLDOWN equ 3
 
 CREF_TRANSPARENT  EQU 0FF00FFh
 CREF_TRANSPARENT2 EQU 0FF0000h
@@ -75,6 +78,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   asteroids ASTEROID ASTEROIDS_MAX dup ({{-1, -1}, {1, 1}, 1})
   explosions EXPLOSION EXPLOSIONS_MAX dup ({{0, 0}, -1})
   UpdateThreadID dd 0
+  create_asteroidsID dd 0
   left_down db 0
   right_down db 0
   space_down db 0
@@ -92,9 +96,15 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   projectileBmp dd ?
   explosionBmp dd ?
 
-	ExitCode dd 0
-	hThread dd 0
-	hEventStart dd 0
+    ExitCode dd 0
+    hThread dd 0
+    hEventStart dd 0
+
+    creating_asteroids dd 0
+    immortal dd 0
+    immortal_counter dd 0
+    flick_counter dd 0
+    showing_ship dd 0
 
   index dd 0
   points dd 0
@@ -110,6 +120,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   header_format_explosion_frame db "explosions[0].frame: %d",0
   format_number_of_lives db "Lives: %d",0
   format_pointer db "Points: %d",0
+  format_prepare db "PREPARE-SE",0
 
   EventStop BOOL FALSE
 ; #########################################################################
@@ -155,6 +166,72 @@ start:
       invoke WinMain,hInstance,NULL,CommandLine,SW_SHOWDEFAULT
       invoke ExitProcess,eax
 
+; #########################################################################
+
+asteroids_length proc
+    mov eax, 0
+    mov esi, 0
+    .WHILE esi < sizeof ASTEROID * ASTEROIDS_MAX
+        .IF asteroids[esi].tam < 4
+            .IF asteroids[esi].tam > 0
+                inc eax
+            .ENDIF
+        .ENDIF
+        add esi, sizeof ASTEROID
+    .ENDW
+    return eax
+asteroids_length endp
+
+
+
+create_asteroids proc
+    mov creating_asteroids, 1
+    mov edi, 0
+    .WHILE edi < sizeof ASTEROID * ASTEROIDS_MAX
+        invoke Sleep, SLEEP_ASTEROID
+        invoke  GetTickCount
+        invoke  nseed, eax
+        invoke  nrandom, SCREEN_WIDTH
+        mov asteroids[edi].position.x, eax
+
+        invoke Sleep, SLEEP_ASTEROID
+        invoke  GetTickCount
+        invoke  nseed, eax
+        invoke  nrandom, SCREEN_HEIGHT
+        mov asteroids[edi].position.y, eax
+
+        .IF edi < ASTEROIDS_INIT * sizeof ASTEROID
+            invoke Sleep, SLEEP_ASTEROID
+            invoke  GetTickCount
+            invoke  nseed, eax
+            invoke  nrandom, 3
+            add eax, 1
+            mov asteroids[edi].tam, eax
+        .ELSE
+            mov asteroids[edi].tam, 0
+        .ENDIF
+
+        invoke Sleep, SLEEP_ASTEROID
+        xor eax, eax
+        invoke  GetTickCount
+        invoke  nseed, eax
+        invoke  nrandom, ASTEROID_MAX_VELOCITY
+        add eax, -5
+        mov asteroids[edi].velocity.x, eax
+
+        invoke Sleep, SLEEP_ASTEROID
+        xor eax, eax
+        invoke  GetTickCount
+        invoke  nseed, eax
+        invoke  nrandom, ASTEROID_MAX_VELOCITY
+        add eax, -5
+        mov asteroids[edi].velocity.y, eax
+
+        add edi, sizeof ASTEROID
+    .ENDW
+    mov creating_asteroids, 0
+    return 0
+create_asteroids endp
 ; #########################################################################
 
 WinMain proc hInst     :DWORD,
@@ -204,50 +281,12 @@ WinMain proc hInst     :DWORD,
 
       mov Wwd, SCREEN_WIDTH
       mov Wht, SCREEN_HEIGHT
+      mov shipSpritesIndex, 0
     
-        mov edi, 0
-        .WHILE edi < sizeof ASTEROID * ASTEROIDS_MAX
-            invoke Sleep, 10
-            invoke  GetTickCount
-            invoke  nseed, eax
-            invoke  nrandom, SCREEN_WIDTH
-            mov asteroids[edi].position.x, eax
-
-            invoke Sleep, 10
-            invoke  GetTickCount
-            invoke  nseed, eax
-            invoke  nrandom, SCREEN_HEIGHT
-            mov asteroids[edi].position.y, eax
-
-            .IF edi < ASTEROIDS_INIT * sizeof ASTEROID
-                invoke Sleep, 10
-                invoke  GetTickCount
-                invoke  nseed, eax
-                invoke  nrandom, 3
-                add eax, 1
-                mov asteroids[edi].tam, eax
-            .ELSE
-                mov asteroids[edi].tam, 0
-            .ENDIF
-
-            invoke Sleep, 10   
-            xor eax, eax
-            invoke  GetTickCount
-            invoke  nseed, eax
-            invoke  nrandom, ASTEROID_MAX_VELOCITY
-            add eax, -5
-            mov asteroids[edi].velocity.x, eax
-
-            invoke Sleep, 10   
-            xor eax, eax
-            invoke  GetTickCount
-            invoke  nseed, eax
-            invoke  nrandom, ASTEROID_MAX_VELOCITY
-            add eax, -5
-            mov asteroids[edi].velocity.y, eax
-
-            add edi, sizeof ASTEROID
-        .ENDW
+        mov    eax, offset create_asteroids
+        invoke CreateThread,NULL,NULL, eax,\
+		                    NULL,NORMAL_PRIORITY_CLASS,\
+		                     ADDR create_asteroidsID
 
         mov ship.position.x, 400 - 18
         mov ship.position.y, 300 - 18
@@ -297,11 +336,20 @@ UpdateThread PROC Param:DWORD
     invoke Sleep, 1000/24
     mov esi, -50
 
+    invoke asteroids_length
+
+    .if eax == 0
+        mov    eax, offset create_asteroids
+        invoke CreateThread,NULL,NULL, eax,\
+		                    NULL,NORMAL_PRIORITY_CLASS,\
+		                     ADDR create_asteroidsID
+    .endif
+
     .IF last_shoot_counter < SHOOT_COOLDOWN
         inc last_shoot_counter
     .ENDIF
 
-    .IF ship_destroyed
+    .IF ship_destroyed && !immortal
         .IF respawn_counter < RESPAWN_COOLDOWN
             inc respawn_counter
         .ELSE
@@ -310,22 +358,54 @@ UpdateThread PROC Param:DWORD
             mov ship.position.y, (SCREEN_HEIGHT/2) - 18
             mov ship.velocity.x, 0
             mov ship.velocity.y, 0
-            mov ship_destroyed, 0
+            mov immortal, 1
+            mov flick_counter, 0
+            mov showing_ship,0
+            mov immortal_counter, 0
+            mov shipSpritesIndex, 0
         .ENDIF
     .ENDIF
+
+    .if immortal
+        .if up_down || down_down
+            jmp fim_init_s
+        .endif
+
+        .if flick_counter < FLICK_COOLDOWN
+            inc flick_counter
+        .else
+            mov flick_counter, 0
+            .if showing_ship
+                mov showing_ship,0
+            .else
+                mov showing_ship,1
+            .endif
+        .endif
+
+
+        .IF immortal_counter < IMMORTAL_COOLDOWN
+            inc immortal_counter
+        .ELSE
+            fim_init_s:
+            mov immortal, 0
+            mov ship_destroyed, 0
+            mov showing_ship, 0
+            mov flick_counter, 0
+        .ENDIF
+    .endif
 
     ; // TODO: Spawn random asteroids --- check
     ; // TODO: If lives gets to 0, gameover screen
     ; // TODO: add point score counter --- check
     ; // TODO: splash screen
-    ; // TODO: ship explosion whe collision happens
+    ; // TODO: ship explosion whe collision happens --- check
     ; // TODO: fix collision with non existing objects --- check
     ; // TODO: fix shooting even when is dead --- check
     ; // TODO: set rotation to up when spawning and respawning --- check
-    ; // TODO: be immortal for a few seconds when respawning
+    ; // TODO: be immortal for a few seconds when respawning --- check
     ; // TODO: fix shot freeze in the air --- check
-    ; // TODO: Make newer asteroids when wave ends
-    ; // TODO: Prevent rotating when dead
+    ; // TODO: Make newer asteroids when wave ends --- check
+    ; // TODO: Prevent rotating when dead --- check
 
     .if left_down == 1
         .if shipSpritesIndex == 15
@@ -835,7 +915,7 @@ UpdateThread PROC Param:DWORD
             .endif
             
             ; collision ship asteroids
-            .IF !ship_destroyed
+            .IF !ship_destroyed && !creating_asteroids
                 mov ebx, asteroids[edi].position.x
                 add ebx, esi
                 add ebx, -4
@@ -918,131 +998,133 @@ UpdateThread PROC Param:DWORD
     .ENDW
 
     ; Collision of asteroids with projectiles
-    mov edi, 0        
-    .WHILE edi < ASTEROIDS_MAX * sizeof ASTEROID
-        .IF asteroids[edi].tam > 0 && asteroids[edi].tam < 4
+    .if !creating_asteroids
+        mov edi, 0        
+        .WHILE edi < ASTEROIDS_MAX * sizeof ASTEROID
+            .IF asteroids[edi].tam > 0 && asteroids[edi].tam < 4
 
-            .if asteroids[edi].tam == 1
-                mov esi, 40
-            .elseif asteroids[edi].tam == 2
-                mov esi, 20
-            .elseif asteroids[edi].tam == 3
-                mov esi, 10
-            .endif
-            
-            mov ecx, 0
-            .WHILE ecx != sizeof BODY * 30
-                mov ebx, asteroids[edi].position.x
-                add ebx, esi
-                add ebx, -4
-                ; check collision only if projectile is alive
-                .IF shipProjectiles[ecx].acceleration.x != -1
-                    mov eax, shipProjectiles[ecx].position.x
-                    .IF SDWORD PTR ebx > SDWORD PTR eax
-                        mov ebx, asteroids[edi].position.x
+                .if asteroids[edi].tam == 1
+                    mov esi, 40
+                .elseif asteroids[edi].tam == 2
+                    mov esi, 20
+                .elseif asteroids[edi].tam == 3
+                    mov esi, 10
+                .endif
+                
+                mov ecx, 0
+                .WHILE ecx != sizeof BODY * 30
+                    mov ebx, asteroids[edi].position.x
+                    add ebx, esi
+                    add ebx, -4
+                    ; check collision only if projectile is alive
+                    .IF shipProjectiles[ecx].acceleration.x != -1
                         mov eax, shipProjectiles[ecx].position.x
-                        add eax, 32
-                        .IF SDWORD PTR ebx < SDWORD PTR eax
-                            mov ebx, asteroids[edi].position.y
-                            add ebx, esi
-                            add ebx, -4
-                            mov eax, shipProjectiles[ecx].position.y
-                            .IF SDWORD PTR ebx > SDWORD PTR eax
+                        .IF SDWORD PTR ebx > SDWORD PTR eax
+                            mov ebx, asteroids[edi].position.x
+                            mov eax, shipProjectiles[ecx].position.x
+                            add eax, 32
+                            .IF SDWORD PTR ebx < SDWORD PTR eax
                                 mov ebx, asteroids[edi].position.y
+                                add ebx, esi
+                                add ebx, -4
                                 mov eax, shipProjectiles[ecx].position.y
-                                add eax, 32
-                                .IF SDWORD PTR ebx < SDWORD PTR eax
-                                    mov eax, asteroids[edi].tam
-                                    add points, eax
-                                    add points, eax
-                                    add points, eax
-                                    add points, eax
-                                    add points, eax
-                                    add points, eax
-                                    add points, eax
-                                    add points, eax
-                                    add points, eax
-                                    add points, eax
-                                    ; we ran out of registers, so this is 10 times the size of the asteroid
-
-                                    inc asteroids[edi].tam
-
-                                    ; add explosion
-                                    mov esi, 0
-                                    .WHILE explosions[esi].frame < 39 && explosions[esi].frame != -1
-                                        add esi, sizeof EXPLOSION
-                                    .ENDW
-
-                                    m2m explosions[esi].position.x, asteroids[edi].position.x
-                                    m2m explosions[esi].position.y, asteroids[edi].position.y
-                                    mov explosions[esi].frame, 0
-
-                                    mov shipProjectiles[ecx].position.x, -1
-                                    mov shipProjectiles[ecx].position.y, -1
-                                    mov shipProjectiles[ecx].velocity.x, -1
-                                    mov shipProjectiles[ecx].velocity.y, -1
-                                    mov shipProjectiles[ecx].acceleration.x, -1
-                                    mov shipProjectiles[ecx].acceleration.y, -1
-
-                                    mov esi, 0
-                                    .WHILE asteroids[esi].tam > 0 && asteroids[esi].tam < 4
-                                        .IF esi == ASTEROIDS_MAX * sizeof ASTEROID
-                                            jmp end_of_asteroids_projectiles_collision_loop
-                                        .ENDIF
-                                        add esi, sizeof ASTEROID
-                                    .ENDW
-
-                                    invoke Sleep, 5
-                                    invoke  GetTickCount
-                                    invoke  nseed, eax
-                                    invoke  nrandom, ASTEROID_MAX_VELOCITY
-                                    sub eax, 5
-                                    mov asteroids[edi].velocity.x, eax
-
-                                    invoke Sleep, 5
-                                    invoke  GetTickCount
-                                    invoke  nseed, eax
-                                    invoke  nrandom, ASTEROID_MAX_VELOCITY
-                                    sub eax, 5
-                                    mov asteroids[edi].velocity.y, eax
-                                
-                                    invoke Sleep, 5
-                                    invoke  GetTickCount
-                                    invoke  nseed, eax
-                                    invoke  nrandom, ASTEROID_MAX_VELOCITY
-                                    sub eax, 5
-                                    mov asteroids[esi].velocity.x, eax
-
-                                    invoke Sleep, 5
-                                    invoke  GetTickCount
-                                    invoke  nseed, eax
-                                    ;invoke  nrandom, ASTEROID_MAX_VELOCITY ; for some reason this random doesnt work but its effect is unnoticeble
-                                    sub eax, 5
-                                    mov asteroids[esi].velocity.y, 1
-
-                                    mov eax, 0
-
-                                    mov ebx, asteroids[edi].position.x
-                                    mov asteroids[esi].position.x, ebx
-
+                                .IF SDWORD PTR ebx > SDWORD PTR eax
                                     mov ebx, asteroids[edi].position.y
-                                    mov asteroids[esi].position.y, ebx  
+                                    mov eax, shipProjectiles[ecx].position.y
+                                    add eax, 32
+                                    .IF SDWORD PTR ebx < SDWORD PTR eax
+                                        mov eax, asteroids[edi].tam
+                                        add points, eax
+                                        add points, eax
+                                        add points, eax
+                                        add points, eax
+                                        add points, eax
+                                        add points, eax
+                                        add points, eax
+                                        add points, eax
+                                        add points, eax
+                                        add points, eax
+                                        ; we ran out of registers, so this is 10 times the size of the asteroid
+
+                                        inc asteroids[edi].tam
+
+                                        ; add explosion
+                                        mov esi, 0
+                                        .WHILE explosions[esi].frame < 39 && explosions[esi].frame != -1
+                                            add esi, sizeof EXPLOSION
+                                        .ENDW
+
+                                        m2m explosions[esi].position.x, asteroids[edi].position.x
+                                        m2m explosions[esi].position.y, asteroids[edi].position.y
+                                        mov explosions[esi].frame, 0
+
+                                        mov shipProjectiles[ecx].position.x, -1
+                                        mov shipProjectiles[ecx].position.y, -1
+                                        mov shipProjectiles[ecx].velocity.x, -1
+                                        mov shipProjectiles[ecx].velocity.y, -1
+                                        mov shipProjectiles[ecx].acceleration.x, -1
+                                        mov shipProjectiles[ecx].acceleration.y, -1
+
+                                        mov esi, 0
+                                        .WHILE asteroids[esi].tam > 0 && asteroids[esi].tam < 4
+                                            .IF esi == ASTEROIDS_MAX * sizeof ASTEROID
+                                                jmp end_of_asteroids_projectiles_collision_loop
+                                            .ENDIF
+                                            add esi, sizeof ASTEROID
+                                        .ENDW
+
+                                        invoke Sleep, 5
+                                        invoke  GetTickCount
+                                        invoke  nseed, eax
+                                        invoke  nrandom, ASTEROID_MAX_VELOCITY
+                                        sub eax, 5
+                                        mov asteroids[edi].velocity.x, eax
+
+                                        invoke Sleep, 5
+                                        invoke  GetTickCount
+                                        invoke  nseed, eax
+                                        invoke  nrandom, ASTEROID_MAX_VELOCITY
+                                        sub eax, 5
+                                        mov asteroids[edi].velocity.y, eax
                                     
-                                    m2m asteroids[esi].tam, asteroids[edi].tam
-                                    
-                                    jmp end_of_asteroids_projectiles_collision_loop2                           
+                                        invoke Sleep, 5
+                                        invoke  GetTickCount
+                                        invoke  nseed, eax
+                                        invoke  nrandom, ASTEROID_MAX_VELOCITY
+                                        sub eax, 5
+                                        mov asteroids[esi].velocity.x, eax
+
+                                        invoke Sleep, 5
+                                        invoke  GetTickCount
+                                        invoke  nseed, eax
+                                        ;invoke  nrandom, ASTEROID_MAX_VELOCITY ; for some reason this random doesnt work but its effect is unnoticeble
+                                        sub eax, 5
+                                        mov asteroids[esi].velocity.y, 1
+
+                                        mov eax, 0
+
+                                        mov ebx, asteroids[edi].position.x
+                                        mov asteroids[esi].position.x, ebx
+
+                                        mov ebx, asteroids[edi].position.y
+                                        mov asteroids[esi].position.y, ebx  
+                                        
+                                        m2m asteroids[esi].tam, asteroids[edi].tam
+                                        
+                                        jmp end_of_asteroids_projectiles_collision_loop2                           
+                                    .ENDIF
                                 .ENDIF
                             .ENDIF
                         .ENDIF
                     .ENDIF
-                .ENDIF
-                end_of_asteroids_projectiles_collision_loop2:
-                add ecx, sizeof BODY
-            .ENDW
-        .ENDIF
-        end_of_asteroids_projectiles_collision_loop:
-        add edi, sizeof ASTEROID
-    .ENDW
+                    end_of_asteroids_projectiles_collision_loop2:
+                    add ecx, sizeof BODY
+                .ENDW
+            .ENDIF
+            end_of_asteroids_projectiles_collision_loop:
+            add edi, sizeof ASTEROID
+        .ENDW
+    .endif
 
     invoke InvalidateRect,hWnd,NULL,TRUE
     jmp UpdateThread
@@ -1163,6 +1245,7 @@ TopXY endp
 
 ; #########################################################################
 ; // MARK: Paint_Proc
+
 Paint_Proc proc hWin:DWORD, hDC:DWORD
 
     LOCAL hOld:DWORD
@@ -1190,7 +1273,7 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     mul shipSpritesIndex
 
     ; paint the ship if it's not destroyed
-    .IF !ship_destroyed
+    .IF !ship_destroyed || showing_ship
         invoke TransparentBlt,hDC, \
         ;paint point
         ship.position.x, ship.position.y, \
@@ -1205,36 +1288,38 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         CREF_TRANSPARENT
     .ENDIF
 
-    mov edi, 0
-    .WHILE edi < ASTEROIDS_MAX * sizeof ASTEROID
-        .IF asteroids[edi].tam > 0
-            .IF asteroids[edi].tam < 4
-                .if asteroids[edi].tam == 1
-                    invoke SelectObject,memDC,asteroid1Bmp
-                    mov esi, 40
-                .elseif asteroids[edi].tam == 3
-                    invoke SelectObject,memDC,asteroid3Bmp
-                    mov esi, 10
-                .elseif asteroids[edi].tam == 2
-                    invoke SelectObject,memDC,asteroid2Bmp
-                    mov esi, 20
-                .endif
-                invoke TransparentBlt,hDC, \
-                ;paint point
-                asteroids[edi].position.x, asteroids[edi].position.y, \
-                ;asteroid size
-                esi, esi, \
-                memDC, \
-                ;current_sprite
-                0, 0, \
-                ;asteroid size
-                esi, esi, \
-                ;color to be ignored
-                BLACK_COLOR
+    .if !creating_asteroids
+        mov edi, 0
+        .WHILE edi < ASTEROIDS_MAX * sizeof ASTEROID
+            .IF asteroids[edi].tam > 0
+                .IF asteroids[edi].tam < 4
+                    .if asteroids[edi].tam == 1
+                        invoke SelectObject,memDC,asteroid1Bmp
+                        mov esi, 40
+                    .elseif asteroids[edi].tam == 3
+                        invoke SelectObject,memDC,asteroid3Bmp
+                        mov esi, 10
+                    .elseif asteroids[edi].tam == 2
+                        invoke SelectObject,memDC,asteroid2Bmp
+                        mov esi, 20
+                    .endif
+                    invoke TransparentBlt,hDC, \
+                    ;paint point
+                    asteroids[edi].position.x, asteroids[edi].position.y, \
+                    ;asteroid size
+                    esi, esi, \
+                    memDC, \
+                    ;current_sprite
+                    0, 0, \
+                    ;asteroid size
+                    esi, esi, \
+                    ;color to be ignored
+                    BLACK_COLOR
+                .ENDIF
             .ENDIF
-        .ENDIF
-        add edi, sizeof ASTEROID
-    .ENDW
+            add edi, sizeof ASTEROID
+        .ENDW
+    .endif
 
     invoke SelectObject,memDC,projectileBmp ; select projectile image
     mov edi, 0
@@ -1297,23 +1382,19 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     invoke ExtTextOutA, hDC,0, 0, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
 
     invoke wsprintfA, ADDR buffer, ADDR format_pointer, points
-    invoke ExtTextOutA, hDC,0, 17, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+    invoke ExtTextOutA, hDC,0, 16, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+
+    .if creating_asteroids
+        invoke wsprintfA, ADDR buffer, ADDR format_prepare
+        invoke ExtTextOutA, hDC,0, 32, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+    .endif
 
     ; debug
     invoke SetTextColor, memDC, WHITE_COLOR
     invoke SetBkColor, memDC, BLACK_COLOR
     invoke SelectObject, memDC, hFont
 
-    mov eax, 0
-    mov esi, 0
-    .WHILE esi < sizeof ASTEROID * ASTEROIDS_MAX
-        .IF asteroids[esi].tam < 4
-            .IF asteroids[esi].tam > 0
-                inc eax
-            .ENDIF
-        .ENDIF
-        add esi, sizeof ASTEROID
-    .ENDW
+    invoke asteroids_length
 
     invoke wsprintfA, ADDR buffer, ADDR header_format, eax
     invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
@@ -1341,6 +1422,7 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     return 0
 
 Paint_Proc endp
+
 
 ; ########################################################################
 
