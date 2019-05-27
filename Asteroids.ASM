@@ -119,6 +119,8 @@ CREF_TRANSPARENT2 EQU 0FF0000h
     flick_counter dd 0
     showing_ship dd 0
 
+    on_menu dd 0
+
   index dd 0
   points dd 0
 
@@ -128,12 +130,8 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   error_string db "Error loading image",0
   strEqualNegativeOne db "Not equal to negative one",0
   buffer db 300 dup(?)
-  header_format db "Number of asteroids: %d",0
-  header_format_ship_destroyed db "BATEU",0
-  header_format_explosion_frame db "explosions[0].frame: %d",0
   format_number_of_lives db "Lives: %d",0
   format_pointer db "Points: %d",0
-  format_prepare db "PREPARE-SE",0
 
   EventStop BOOL FALSE
 ; #########################################################################
@@ -427,11 +425,12 @@ UpdateThread PROC Param:DWORD
         .ENDIF
     .endif
 
-    ; // TODO: If lives gets to 0, gameover screen --- check
     ; // TODO: initial screen
     ; // TODO: paint partial sprites when on limits of screen
     ; // TODO: projectiles pass to other side of screen
+    ; // TODO: fix projectile collision with asteroid
     ; // TODO: image of ship with engine on (Fuka working on it)
+    ; // TODO: If lives gets to 0, gameover screen --- check
     ; // TODO: Spawn random asteroids --- check
     ; // TODO: add point score counter --- check
     ; // TODO: ship explosion whe collision happens --- check
@@ -1433,14 +1432,6 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     invoke SetBkColor, memDC, BLACK_COLOR
     invoke SelectObject, memDC, hFont
 
-    invoke asteroids_length
-
-    invoke wsprintfA, ADDR buffer, ADDR header_format, eax
-    invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
-
-    invoke wsprintfA, ADDR buffer, ADDR header_format_explosion_frame, explosions[0].frame
-    invoke ExtTextOutA, hDC,100, 150, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
-
     .if creating_asteroids
         invoke SelectObject,memDC,prepareBmp
         ; paint the ship
@@ -1454,6 +1445,38 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         0, 0, \
         ;proj size
         254,32, \
+        ;color to be ignored
+        CREF_TRANSPARENT
+    .endif
+
+    .if on_menu
+        invoke SelectObject,memDC,titleBmp
+        ; paint the ship
+        invoke TransparentBlt,hDC, \
+        ;paint point
+        400 - 425/2, 240, \
+        ;proj size
+        425,32, \
+        memDC, \
+        ;current_sprite
+        0, 0, \
+        ;proj size
+        425,32, \
+        ;color to be ignored
+        CREF_TRANSPARENT
+
+        invoke SelectObject,memDC,aperte_enterBmp
+        ; paint the ship
+        invoke TransparentBlt,hDC, \
+        ;paint point
+        400 - 425/2, 400, \
+        ;proj size
+        425,32, \
+        memDC, \
+        ;current_sprite
+        0, 0, \
+        ;proj size
+        425,32, \
         ;color to be ignored
         CREF_TRANSPARENT
     .endif
