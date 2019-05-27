@@ -38,6 +38,7 @@ projectileBmpId equ 105
 explosionBmpId equ 106
 prepareBmpId equ 107
 titleBmpId equ 108
+game_overBmpId equ 109
 
 BLACK_COLOR equ 0000000h
 WHITE_COLOR equ 0ffffffh
@@ -47,7 +48,6 @@ ASTEROIDS_INIT equ 15
 ASTEROIDS_MAX equ ASTEROIDS_INIT * 3
 EXPLOSIONS_MAX equ 15
 EXPLOSION_FRAME_SIZE equ 26
-
 
 PROJECTILE_VELOCITY equ 10
 ASTEROID_MAX_VELOCITY equ 10
@@ -89,10 +89,13 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   down_down db 0
   ship_destroyed db 0
   
+  game_over dd 0
   respawn_counter dd 0
   last_shoot_counter dd 0
   rotate_counter dd 0
+
   shipBmp         dd ?
+  game_overBmp dd ?
   space_backgroundBmp dd ?
   prepareBmp dd ?
   titleBmp dd ?
@@ -145,6 +148,9 @@ start:
 
       invoke LoadBitmap,hInstance, titleBmpId
       mov titleBmp, eax
+
+      invoke LoadBitmap,hInstance, game_overBmpId
+      mov game_overBmp, eax
 
       invoke LoadBitmap,hInstance, space_backgroundBmpId
       mov space_backgroundBmp, eax
@@ -379,6 +385,12 @@ UpdateThread PROC Param:DWORD
             mov showing_ship,0
             mov immortal_counter, 0
             mov shipSpritesIndex, 0
+            
+            .if player_lives == 0
+                mov immortal, 0
+                mov ship_destroyed, 1
+                mov game_over, 1
+            .endif
         .ENDIF
     .ENDIF
 
@@ -1435,6 +1447,23 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         0, 0, \
         ;proj size
         254,32, \
+        ;color to be ignored
+        CREF_TRANSPARENT
+    .endif
+
+    .if game_over
+        invoke SelectObject,memDC,game_overBmp
+        ; paint the ship
+        invoke TransparentBlt,hDC, \
+        ;paint point
+        400 - 240/2, 300 - 32, \
+        ;proj size
+        239,32, \
+        memDC, \
+        ;current_sprite
+        0, 0, \
+        ;proj size
+        239,32, \
         ;color to be ignored
         CREF_TRANSPARENT
     .endif
