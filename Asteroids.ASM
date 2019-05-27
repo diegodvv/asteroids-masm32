@@ -36,6 +36,8 @@ asteroid2BmpId equ 103
 asteroid3BmpId equ 104
 projectileBmpId equ 105
 explosionBmpId equ 106
+prepareBmpId equ 107
+titleBmpId equ 108
 
 BLACK_COLOR equ 0000000h
 WHITE_COLOR equ 0ffffffh
@@ -52,6 +54,7 @@ ASTEROID_MAX_VELOCITY equ 10
 SHOOT_COOLDOWN equ 10
 RESPAWN_COOLDOWN equ 30
 IMMORTAL_COOLDOWN equ 100
+ROTATE_COOLDOWN equ 1
 FLICK_COOLDOWN equ 3
 
 CREF_TRANSPARENT  EQU 0FF00FFh
@@ -88,8 +91,11 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   
   respawn_counter dd 0
   last_shoot_counter dd 0
+  rotate_counter dd 0
   shipBmp         dd ?
   space_backgroundBmp dd ?
+  prepareBmp dd ?
+  titleBmp dd ?
   asteroid1Bmp dd ?
   asteroid2Bmp dd ?
   asteroid3Bmp dd ?
@@ -133,6 +139,12 @@ start:
       
       invoke LoadBitmap,hInstance, shipBmpId
       mov shipBmp, eax
+
+      invoke LoadBitmap,hInstance, prepareBmpId
+      mov prepareBmp, eax
+
+      invoke LoadBitmap,hInstance, titleBmpId
+      mov titleBmp, eax
 
       invoke LoadBitmap,hInstance, space_backgroundBmpId
       mov space_backgroundBmp, eax
@@ -301,7 +313,7 @@ WinMain proc hInst     :DWORD,
       invoke CreateWindowEx,WS_EX_LEFT,
                             ADDR szClassName,
                             ADDR szDisplayName,
-                            WS_OVERLAPPEDWINDOW,
+                            WS_SYSMENU,
                             Wtx,Wty,Wwd,Wht,
                             NULL,NULL,
                             hInst,NULL
@@ -349,6 +361,10 @@ UpdateThread PROC Param:DWORD
         inc last_shoot_counter
     .ENDIF
 
+    .IF rotate_counter < ROTATE_COOLDOWN
+        inc rotate_counter
+    .ENDIF
+
     .IF ship_destroyed && !immortal
         .IF respawn_counter < RESPAWN_COOLDOWN
             inc respawn_counter
@@ -367,7 +383,7 @@ UpdateThread PROC Param:DWORD
     .ENDIF
 
     .if immortal
-        .if up_down || down_down
+        .if up_down || down_down || space_down
             jmp fim_init_s
         .endif
 
@@ -394,10 +410,13 @@ UpdateThread PROC Param:DWORD
         .ENDIF
     .endif
 
-    ; // TODO: Spawn random asteroids --- check
     ; // TODO: If lives gets to 0, gameover screen
-    ; // TODO: add point score counter --- check
     ; // TODO: splash screen
+    ; // TODO: paint partial sprites when on limits of screen
+    ; // TODO: projectiles pass to other side of screen
+    ; // TODO: image of ship with engine on (Fuka working on it)
+    ; // TODO: Spawn random asteroids --- check
+    ; // TODO: add point score counter --- check
     ; // TODO: ship explosion whe collision happens --- check
     ; // TODO: fix collision with non existing objects --- check
     ; // TODO: fix shooting even when is dead --- check
@@ -408,19 +427,25 @@ UpdateThread PROC Param:DWORD
     ; // TODO: Prevent rotating when dead --- check
 
     .if left_down == 1
-        .if shipSpritesIndex == 15
-            mov shipSpritesIndex, 0
-        .else
-            inc shipSpritesIndex
-        .endif
+        .IF rotate_counter == ROTATE_COOLDOWN
+            mov rotate_counter, 0
+            .if shipSpritesIndex == 15
+                mov shipSpritesIndex, 0
+            .else
+                inc shipSpritesIndex
+            .endif
+        .ENDIF
     .endif
     
     .if right_down == 1
-        .if shipSpritesIndex == 0
-            mov shipSpritesIndex, 15
-        .else
-            dec shipSpritesIndex
-        .endif
+        .IF rotate_counter == ROTATE_COOLDOWN
+            mov rotate_counter, 0
+            .if shipSpritesIndex == 0
+                mov shipSpritesIndex, 15
+            .else
+                dec shipSpritesIndex
+            .endif
+        .ENDIF
     .endif
 
     .if up_down == 1
@@ -1384,11 +1409,6 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     invoke wsprintfA, ADDR buffer, ADDR format_pointer, points
     invoke ExtTextOutA, hDC,0, 16, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
 
-    .if creating_asteroids
-        invoke wsprintfA, ADDR buffer, ADDR format_prepare
-        invoke ExtTextOutA, hDC,0, 32, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
-    .endif
-
     ; debug
     invoke SetTextColor, memDC, WHITE_COLOR
     invoke SetBkColor, memDC, BLACK_COLOR
@@ -1401,6 +1421,23 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
 
     invoke wsprintfA, ADDR buffer, ADDR header_format_explosion_frame, explosions[0].frame
     invoke ExtTextOutA, hDC,100, 150, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+
+    .if creating_asteroids
+        invoke SelectObject,memDC,prepareBmp
+        ; paint the ship
+        invoke TransparentBlt,hDC, \
+        ;paint point
+        400 - 254/2, 80, \
+        ;proj size
+        254,32, \
+        memDC, \
+        ;current_sprite
+        0, 0, \
+        ;proj size
+        254,32, \
+        ;color to be ignored
+        CREF_TRANSPARENT
+    .endif
 
     ;.IF !ship_destroyed
     ;    mov esi, ship.position.x
