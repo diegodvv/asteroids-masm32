@@ -120,6 +120,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
     showing_ship dd 0
 
     on_menu dd 0
+    
 
   index dd 0
   points dd 0
@@ -309,6 +310,9 @@ WinMain proc hInst     :DWORD,
 		                    NULL,NORMAL_PRIORITY_CLASS,\
 		                     ADDR create_asteroidsID
 
+        mov on_menu, 1
+
+
         mov ship.position.x, 400 - 18
         mov ship.position.y, 300 - 18
       invoke GetSystemMetrics,SM_CXSCREEN
@@ -356,6 +360,12 @@ WinMain endp
 UpdateThread PROC Param:DWORD
     invoke Sleep, 1000/24
     mov esi, -50
+
+
+    .if enter_up
+        mov enter_up, 0
+        xor on_menu, 1
+    .endif
 
     invoke asteroids_length
 
@@ -1469,14 +1479,14 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         ; paint the ship
         invoke TransparentBlt,hDC, \
         ;paint point
-        400 - 425/2, 400, \
+        400 - 392/2, 400, \
         ;proj size
-        425,32, \
+        392,28, \
         memDC, \
         ;current_sprite
         0, 0, \
         ;proj size
-        425,32, \
+        392,28, \
         ;color to be ignored
         CREF_TRANSPARENT
     .endif
@@ -1501,14 +1511,14 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         ; paint the ship
         invoke TransparentBlt,hDC, \
         ;paint point
-        400 - 392/2, 400, \
+        400 - 425/2, 400, \
         ;proj size
-        392,28, \
+        425,32, \
         memDC, \
         ;current_sprite
         0, 0, \
         ;proj size
-        392,28, \
+        425,32, \
         ;color to be ignored
         CREF_TRANSPARENT
     .endif
