@@ -82,6 +82,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   asteroids ASTEROID ASTEROIDS_MAX dup ({{-1, -1}, {1, 1}, 1})
   explosions EXPLOSION EXPLOSIONS_MAX dup ({{0, 0}, -1})
   UpdateThreadID dd 0
+  RefreshThreadID dd 0
   create_asteroidsID dd 0
 
   left_down db 0
@@ -256,6 +257,8 @@ create_asteroids proc
 create_asteroids endp
 ; #########################################################################
 
+
+
 WinMain proc hInst     :DWORD,
              hPrevInst :DWORD,
              CmdLine   :DWORD,
@@ -356,6 +359,13 @@ WinMain endp
 
 ; #########################################################################
 
+RefreshThread PROC
+    invoke Sleep, 1000/60
+    invoke InvalidateRect,hWnd,NULL,TRUE
+    jmp RefreshThread
+    ret
+RefreshThread ENDP
+
 ; // MARK : UpdateThread
 UpdateThread PROC Param:DWORD
     invoke Sleep, 1000/24
@@ -438,7 +448,7 @@ UpdateThread PROC Param:DWORD
     ; // TODO: initial screen
     ; // TODO: paint partial sprites when on limits of screen
     ; // TODO: projectiles pass to other side of screen
-    ; // TODO: fix projectile collision with asteroid
+    ; // TODO: fix projectile collision with asteroid --- check
     ; // TODO: image of ship with engine on (Fuka working on it)
     ; // TODO: If lives gets to 0, gameover screen --- check
     ; // TODO: Spawn random asteroids --- check
@@ -1066,23 +1076,21 @@ UpdateThread PROC Param:DWORD
                 .WHILE ecx != sizeof BODY * 30
                     mov ebx, asteroids[edi].position.x
                     add ebx, esi
-                    add ebx, -4
                     ; check collision only if projectile is alive
                     .IF shipProjectiles[ecx].acceleration.x != -1
                         mov eax, shipProjectiles[ecx].position.x
                         .IF SDWORD PTR ebx > SDWORD PTR eax
                             mov ebx, asteroids[edi].position.x
                             mov eax, shipProjectiles[ecx].position.x
-                            add eax, 32
+                            add eax, esi
                             .IF SDWORD PTR ebx < SDWORD PTR eax
                                 mov ebx, asteroids[edi].position.y
                                 add ebx, esi
-                                add ebx, -4
                                 mov eax, shipProjectiles[ecx].position.y
                                 .IF SDWORD PTR ebx > SDWORD PTR eax
                                     mov ebx, asteroids[edi].position.y
                                     mov eax, shipProjectiles[ecx].position.y
-                                    add eax, 32
+                                    add eax, esi
                                     .IF SDWORD PTR ebx < SDWORD PTR eax
                                         mov eax, asteroids[edi].tam
                                         add points, eax
@@ -1177,10 +1185,11 @@ UpdateThread PROC Param:DWORD
         .ENDW
     .endif
 
-    invoke InvalidateRect,hWnd,NULL,TRUE
+    ;
     jmp UpdateThread
     ret
 UpdateThread ENDP
+
 
 WndProc proc hWin   :DWORD,     
              uMsg   :DWORD,
@@ -1215,7 +1224,11 @@ WndProc proc hWin   :DWORD,
 		                    NULL,NORMAL_PRIORITY_CLASS,\
 		                     ADDR UpdateThreadID
 
-
+        mov    eax, offset RefreshThread
+        invoke CreateThread,NULL,NULL, eax,\
+		                    NULL,NORMAL_PRIORITY_CLASS,\
+		                     ADDR RefreshThreadID
+        ; CreateTimer : 
 		
     .elseif uMsg == WM_SIZE
     ;    // obter o tamanho da janela
