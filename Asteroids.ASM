@@ -89,7 +89,6 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   right_down db 0
   space_down db 0
   up_down db 0
-  down_down db 0
   enter_up db 0
 
   ship_destroyed db 0
@@ -138,6 +137,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   buffer db 300 dup(?)
   format_number_of_lives db "Lives: %d",0
   format_pointer db "Points: %d",0
+  format_pos db "xNave: %d x+wNave:%d",0
 
   EventStop BOOL FALSE
 ; #########################################################################
@@ -316,8 +316,9 @@ WinMain proc hInst     :DWORD,
         mov on_menu, 1
 
 
-        mov ship.position.x, 400 - 18
-        mov ship.position.y, 300 - 18
+        mov ship.position.x, (SCREEN_WIDTH/2) - 18
+        mov ship.position.y, (SCREEN_HEIGHT/2) - 18
+
       invoke GetSystemMetrics,SM_CXSCREEN
       invoke TopXY,Wwd,eax
       mov Wtx, eax
@@ -386,7 +387,6 @@ UpdateThread PROC Param:DWORD
         mov right_down, 0
         mov space_down, 0
         mov up_down, 0
-        mov down_down, 0
         mov enter_up, 0
         mov ship_destroyed, 0
         mov game_over, 0
@@ -447,7 +447,7 @@ UpdateThread PROC Param:DWORD
     .ENDIF
 
     .if immortal
-        .if up_down || down_down || space_down
+        .if up_down || space_down
             jmp fim_init_s
         .endif
 
@@ -577,74 +577,6 @@ UpdateThread PROC Param:DWORD
             dec ship.velocity.y
             dec ship.velocity.y
             inc ship.velocity.x
-        .endif
-    .endif
-
-    .if down_down == 1 && !on_menu
-        .if shipSpritesIndex == 0
-            inc ship.velocity.y
-            inc ship.velocity.y
-        .elseif shipSpritesIndex == 1
-            inc ship.velocity.y
-            inc ship.velocity.y
-            inc ship.velocity.x
-        .elseif shipSpritesIndex == 2
-            inc ship.velocity.y
-            inc ship.velocity.y
-            inc ship.velocity.x
-            inc ship.velocity.x
-        .elseif shipSpritesIndex == 3
-            inc ship.velocity.y
-            inc ship.velocity.x
-            inc ship.velocity.x
-        .elseif shipSpritesIndex == 4
-            inc ship.velocity.x
-            inc ship.velocity.x
-        .elseif shipSpritesIndex == 5
-            dec ship.velocity.y
-            inc ship.velocity.x
-            inc ship.velocity.x
-        .elseif shipSpritesIndex == 6
-            dec ship.velocity.y
-            dec ship.velocity.y
-            inc ship.velocity.x
-            inc ship.velocity.x
-        .elseif shipSpritesIndex == 7
-            dec ship.velocity.y
-            dec ship.velocity.y
-            inc ship.velocity.x
-        .elseif shipSpritesIndex == 8
-            dec ship.velocity.y
-            dec ship.velocity.y
-        .elseif shipSpritesIndex == 9
-            dec ship.velocity.y
-            dec ship.velocity.y
-            dec ship.velocity.x
-        .elseif shipSpritesIndex == 10
-            dec ship.velocity.y
-            dec ship.velocity.y
-            dec ship.velocity.x
-            dec ship.velocity.x
-        .elseif shipSpritesIndex == 11
-            dec ship.velocity.y
-            dec ship.velocity.x
-            dec ship.velocity.x
-        .elseif shipSpritesIndex == 12
-            dec ship.velocity.x
-            dec ship.velocity.x
-        .elseif shipSpritesIndex == 13
-            inc ship.velocity.y
-            dec ship.velocity.x
-            dec ship.velocity.x
-        .elseif shipSpritesIndex == 14
-            inc ship.velocity.y
-            inc ship.velocity.y
-            dec ship.velocity.x
-            dec ship.velocity.x
-        .elseif shipSpritesIndex == 15
-            inc ship.velocity.y
-            inc ship.velocity.y
-            dec ship.velocity.x
         .endif
     .endif
   
@@ -935,40 +867,17 @@ UpdateThread PROC Param:DWORD
     mov eax, ship.velocity.y
     add ship.position.y, eax
 
-    mov ebx, ship.position.x
-    add ebx, 36
     mov ecx, ship.position.x
-    ;add ecx, 36
-    .if SDWORD PTR ecx >= SCREEN_WIDTH
-        ;mov eax, -1
-        ;imul ship.velocity.x
-
-        ;mov ship.velocity.x, eax
-
-        mov ship.position.x, -36
-    .elseif SDWORD PTR ebx <= 0
-        ;mov eax, -1
-        ;imul ship.velocity.x
-
-        ;mov ship.velocity.x, eax
+    .if SDWORD PTR ecx > SCREEN_WIDTH
+        mov ship.position.x, 0
+    .elseif SDWORD PTR ecx < 0
         mov ship.position.x, SCREEN_WIDTH
     .endif
 
-    mov ebx, ship.position.y
-    add ebx, 36
     mov ecx, ship.position.y
-    ;add ecx, 36
-    .if SDWORD PTR ecx >= SCREEN_HEIGHT
-        ;mov eax, -1
-        ;imul ship.velocity.y
-
-        ;mov ship.velocity.y, eax
-        mov ship.position.y, -36
-    .elseif SDWORD PTR ebx <= 0
-        ;mov eax, -1
-        ;imul ship.velocity.y
-
-        ;mov ship.velocity.y, eax
+    .if SDWORD PTR ecx > SCREEN_HEIGHT
+        mov ship.position.y, 0
+    .elseif SDWORD PTR ecx < 0
         mov ship.position.y, SCREEN_HEIGHT
     .endif
 
@@ -1287,8 +1196,6 @@ WndProc proc hWin   :DWORD,
             mov left_down, 1
         .elseif wParam == VK_UP
             mov up_down, 1
-        .elseif wParam == VK_DOWN
-            mov down_down, 1
         .endif
    	
     .elseif uMsg == WM_KEYUP
@@ -1300,8 +1207,6 @@ WndProc proc hWin   :DWORD,
             mov space_down, 0
         .elseif wParam == VK_UP
             mov up_down, 0
-        .elseif wParam == VK_DOWN
-            mov down_down, 0
         .elseif wParam == VK_RETURN
             mov enter_up, 1
         .endif
@@ -1381,6 +1286,53 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         36,36, \
         ;color to be ignored
         CREF_TRANSPARENT
+
+        mov ecx, SCREEN_WIDTH
+        sub ecx, ship.position.x
+        sub ecx, 36
+        .IF SDWORD PTR ecx < 0
+            mov eax, 36
+            mul shipSpritesIndex
+
+            neg ecx
+            sub ecx, 36
+            invoke TransparentBlt,hDC, \
+            ;paint point
+            SDWORD PTR ecx, ship.position.y, \
+            ;ship size
+            36,36, \
+            memDC, \
+            ;current_sprite
+            eax, 0, \
+            ;ship size
+            36,36, \
+            ;color to be ignored
+            CREF_TRANSPARENT
+        .ENDIF
+
+        mov ecx, SCREEN_HEIGHT
+        sub ecx, ship.position.y
+        sub ecx, 36
+        .IF SDWORD PTR ecx < 0
+            mov eax, 36
+            mul shipSpritesIndex
+
+            neg ecx
+            sub ecx, 36
+
+            invoke TransparentBlt,hDC, \
+            ;paint point
+            ship.position.x, SDWORD PTR ecx, \
+            ;ship size
+            36,36, \
+            memDC, \
+            ;current_sprite
+            eax, 0, \
+            ;ship size
+            36,36, \
+            ;color to be ignored
+            CREF_TRANSPARENT
+        .ENDIF
     .ENDIF
 
     .if !creating_asteroids
@@ -1398,6 +1350,7 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
                         invoke SelectObject,memDC,asteroid2Bmp
                         mov esi, 20
                     .endif
+
                     invoke TransparentBlt,hDC, \
                     ;paint point
                     asteroids[edi].position.x, asteroids[edi].position.y, \
@@ -1410,6 +1363,51 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
                     esi, esi, \
                     ;color to be ignored
                     CREF_TRANSPARENT
+
+                    mov ecx, SCREEN_WIDTH
+                    sub ecx, ship.position.x
+                    sub ecx, esi
+                    .IF SDWORD PTR ecx < 0
+                        mov eax, esi
+                        mul shipSpritesIndex
+                        neg ecx
+                        sub ecx, esi
+                        invoke TransparentBlt,hDC, \
+                        ;paint point
+                        SDWORD PTR ecx, ship.position.y, \
+                        ;ship size
+                        esi,esi, \
+                        memDC, \
+                        ;current_sprite
+                        eax, 0, \
+                        ;ship size
+                        esi,esi, \
+                        ;color to be ignored
+                        CREF_TRANSPARENT
+                    .ENDIF
+
+                    mov ecx, SCREEN_HEIGHT
+                    sub ecx, ship.position.y
+                    sub ecx, esi
+                    .IF SDWORD PTR ecx < 0
+                        mov eax, esi
+                        mul shipSpritesIndex
+
+                        neg ecx
+                        sub ecx, esi
+                        invoke TransparentBlt,hDC, \
+                        ;paint point
+                        ship.position.x, SDWORD PTR ecx, \
+                        ;ship size
+                        esi,esi, \
+                        memDC, \
+                        ;current_sprite
+                        eax, 0, \
+                        ;ship size
+                        esi,esi, \
+                        ;color to be ignored
+                        CREF_TRANSPARENT
+                    .ENDIF
                 .ENDIF
             .ENDIF
             add edi, sizeof ASTEROID
@@ -1478,6 +1476,7 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
 
     invoke wsprintfA, ADDR buffer, ADDR format_pointer, points
     invoke ExtTextOutA, hDC,0, 16, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+
 
     ; debug
     invoke SetTextColor, memDC, WHITE_COLOR
