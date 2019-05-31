@@ -40,6 +40,7 @@ prepareBmpId equ 107
 titleBmpId equ 108
 game_overBmpId equ 109
 aperte_enterBmpId equ 110
+ship_onBmpId equ 111
 
 BLACK_COLOR equ 0000000h
 WHITE_COLOR equ 0ffffffh
@@ -101,6 +102,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   game_overBmp dd ?
   space_backgroundBmp dd ?
   aperte_enterBmp dd ?
+  ship_onBmp dd ?
   prepareBmp dd ?
   titleBmp dd ?
   asteroid1Bmp dd ?
@@ -163,6 +165,9 @@ start:
 
       invoke LoadBitmap,hInstance, aperte_enterBmpId
       mov aperte_enterBmp, eax
+
+      invoke LoadBitmap,hInstance, ship_onBmpId
+      mov ship_onBmp, eax
 
       .if space_backgroundBmp == NULL
         invoke MessageBox, NULL, ADDR error_string, ADDR szDisplayName, MB_OK
@@ -1349,7 +1354,11 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     invoke SelectObject,memDC,space_backgroundBmp ; select background
     invoke BitBlt,hDC,0,0,800,600,memDC,0,0,SRCCOPY
 
-    invoke SelectObject,memDC,shipBmp  ; select ship image
+    .if up_down
+        invoke SelectObject,memDC,ship_onBmp  ; select ship image
+    .else
+        invoke SelectObject,memDC,shipBmp  ; select ship image
+    .endif
     ;mov hOld, eax
 
     ;invoke wsprintfA, ADDR buffer, ADDR header_format, shipSprites[8].x
