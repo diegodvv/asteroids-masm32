@@ -44,7 +44,7 @@ aperte_enterBmpId equ 110
 BLACK_COLOR equ 0000000h
 WHITE_COLOR equ 0ffffffh
 
-SLEEP_ASTEROID equ 15
+SLEEP_ASTEROID equ 17
 ASTEROIDS_INIT equ 15
 ASTEROIDS_MAX equ ASTEROIDS_INIT * 3
 EXPLOSIONS_MAX equ 15
@@ -79,7 +79,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   ship BODY {{10, 10}, {0, 0}, {0, 0}}
   shipMaxVelocity POINT {10, 10}
   shipProjectiles BODY 30 dup ({{-1, 2}, {3, 4}, {-1, -1}})
-  asteroids ASTEROID ASTEROIDS_MAX dup ({{-1, -1}, {1, 1}, 1})
+  asteroids ASTEROID ASTEROIDS_MAX dup ({{-1, -1}, {1, 1}, 0})
   explosions EXPLOSION EXPLOSIONS_MAX dup ({{0, 0}, -1})
   UpdateThreadID dd 0
   create_asteroidsID dd 0
@@ -120,6 +120,9 @@ CREF_TRANSPARENT2 EQU 0FF0000h
     showing_ship dd 0
 
     on_menu dd 0
+
+    listening dd 1
+    first_time dd 1
     
 
   index dd 0
@@ -304,11 +307,6 @@ WinMain proc hInst     :DWORD,
       mov Wwd, SCREEN_WIDTH
       mov Wht, SCREEN_HEIGHT
       mov shipSpritesIndex, 0
-    
-        mov    eax, offset create_asteroids
-        invoke CreateThread,NULL,NULL, eax,\
-		                    NULL,NORMAL_PRIORITY_CLASS,\
-		                     ADDR create_asteroidsID
 
         mov on_menu, 1
 
@@ -361,15 +359,49 @@ UpdateThread PROC Param:DWORD
     invoke Sleep, 1000/24
     mov esi, -50
 
-
-    .if enter_up
+    .if enter_up && listening
         mov enter_up, 0
-        xor on_menu, 1
+        mov on_menu, 0
+        
+        mov listening, 0
+
+        mov    eax, offset create_asteroids
+        invoke CreateThread,NULL,NULL, eax,\
+		                    NULL,NORMAL_PRIORITY_CLASS,\
+		                     ADDR create_asteroidsID
+        
+        mov first_time, 0
+        mov showing_ship, 1
+        mov game_over, 0
+        mov points, 0
+        mov player_lives, 5
+        mov ship_destroyed, 0
+
+        mov left_down, 0
+        mov right_down, 0
+        mov space_down, 0
+        mov up_down, 0
+        mov down_down, 0
+        mov enter_up, 0
+        mov ship_destroyed, 0
+        mov game_over, 0
+        mov respawn_counter, 0
+        mov last_shoot_counter, 0
+        mov rotate_counter, 0
+        mov creating_asteroids, 0
+        mov immortal, 0
+        mov immortal_counter, 0
+        mov flick_counter, 0
+        mov showing_ship, 0
+        mov on_menu, 0
+        mov listening, 1
+        mov first_time, 1
+        mov index, 0
+        mov points, 0
     .endif
 
     invoke asteroids_length
-
-    .if eax == 0
+    .if eax == 0 && !first_time
         mov    eax, offset create_asteroids
         invoke CreateThread,NULL,NULL, eax,\
 		                    NULL,NORMAL_PRIORITY_CLASS,\
@@ -403,6 +435,8 @@ UpdateThread PROC Param:DWORD
                 mov immortal, 0
                 mov ship_destroyed, 1
                 mov game_over, 1
+                mov enter_up, 0
+                mov listening, 1
             .endif
         .ENDIF
     .ENDIF
@@ -435,11 +469,10 @@ UpdateThread PROC Param:DWORD
         .ENDIF
     .endif
 
-    ; // TODO: initial screen
-    ; // TODO: paint partial sprites when on limits of screen
     ; // TODO: projectiles pass to other side of screen
-    ; // TODO: fix projectile collision with asteroid
     ; // TODO: image of ship with engine on (Fuka working on it)
+    ; // TODO: fix projectile collision with asteroid --- check
+    ; // TODO: initial screen --- check
     ; // TODO: If lives gets to 0, gameover screen --- check
     ; // TODO: Spawn random asteroids --- check
     ; // TODO: add point score counter --- check
@@ -452,7 +485,7 @@ UpdateThread PROC Param:DWORD
     ; // TODO: Make newer asteroids when wave ends --- check
     ; // TODO: Prevent rotating when dead --- check
 
-    .if left_down == 1
+    .if left_down == 1 && !on_menu
         .IF rotate_counter == ROTATE_COOLDOWN
             mov rotate_counter, 0
             .if shipSpritesIndex == 15
@@ -463,7 +496,7 @@ UpdateThread PROC Param:DWORD
         .ENDIF
     .endif
     
-    .if right_down == 1
+    .if right_down == 1 && !on_menu
         .IF rotate_counter == ROTATE_COOLDOWN
             mov rotate_counter, 0
             .if shipSpritesIndex == 0
@@ -474,7 +507,7 @@ UpdateThread PROC Param:DWORD
         .ENDIF
     .endif
 
-    .if up_down == 1
+    .if up_down == 1 && !on_menu
         .if shipSpritesIndex == 0
             dec ship.velocity.y
             dec ship.velocity.y
@@ -542,7 +575,7 @@ UpdateThread PROC Param:DWORD
         .endif
     .endif
 
-    .if down_down == 1
+    .if down_down == 1 && !on_menu
         .if shipSpritesIndex == 0
             inc ship.velocity.y
             inc ship.velocity.y
@@ -1326,7 +1359,7 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     mul shipSpritesIndex
 
     ; paint the ship if it's not destroyed
-    .IF !ship_destroyed || showing_ship
+    .IF (!ship_destroyed || showing_ship) && !on_menu
         invoke TransparentBlt,hDC, \
         ;paint point
         ship.position.x, ship.position.y, \
@@ -1492,6 +1525,21 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     .endif
 
     .if game_over
+        invoke SelectObject,memDC,aperte_enterBmp
+        ; paint the ship
+        invoke TransparentBlt,hDC, \
+        ;paint point
+        400 - 392/2, 400, \
+        ;proj size
+        392,28, \
+        memDC, \
+        ;current_sprite
+        0, 0, \
+        ;proj size
+        392,28, \
+        ;color to be ignored
+        CREF_TRANSPARENT
+
         invoke SelectObject,memDC,game_overBmp
         ; paint the ship
         invoke TransparentBlt,hDC, \
@@ -1504,21 +1552,6 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         0, 0, \
         ;proj size
         239,32, \
-        ;color to be ignored
-        CREF_TRANSPARENT
-
-        invoke SelectObject,memDC,aperte_enterBmp
-        ; paint the ship
-        invoke TransparentBlt,hDC, \
-        ;paint point
-        400 - 425/2, 400, \
-        ;proj size
-        425,32, \
-        memDC, \
-        ;current_sprite
-        0, 0, \
-        ;proj size
-        425,32, \
         ;color to be ignored
         CREF_TRANSPARENT
     .endif
