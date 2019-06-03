@@ -1,4 +1,10 @@
 ; #########################################################################
+;                       Asteroids Clone in masm32
+; by
+; Diego Daniel https://github.com/Lock-n
+; João Lucas https://github.com/JohnnyKaparrala
+; Breno Fukasawa https://github.com/BrenoFuka
+; #########################################################################
 
 .386
 .model flat, stdcall  ; 32 bit memory model
@@ -41,6 +47,7 @@ titleBmpId equ 108
 game_overBmpId equ 109
 aperte_enterBmpId equ 110
 ship_onBmpId equ 111
+instructionsBmpId equ 112
 
 BLACK_COLOR equ 0000000h
 WHITE_COLOR equ 0ffffffh
@@ -68,9 +75,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   hWnd          dd ?
   hInstance     dd ?
   hIcon         dd ?
-  hBmp          dd ?
   hFont         dd ?
-  memDC2        dd 0 
 
   player_lives db 5
   randomnum  db  2 dup (?)
@@ -83,6 +88,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   asteroids ASTEROID ASTEROIDS_MAX dup ({{-1, -1}, {1, 1}, 0})
   explosions EXPLOSION EXPLOSIONS_MAX dup ({{0, 0}, -1})
   UpdateThreadID dd 0
+  RefreshScreenThreadID dd 1
   create_asteroidsID dd 0
 
   left_down db 0
@@ -109,6 +115,7 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   asteroid3Bmp dd ?
   projectileBmp dd ?
   explosionBmp dd ?
+  instructionsBmp dd ?
 
     ExitCode dd 0
     hThread dd 0
@@ -186,6 +193,9 @@ start:
 
       invoke LoadBitmap, hInstance, explosionBmpId
       mov explosionBmp, eax
+
+      invoke LoadBitmap, hInstance, instructionsBmpId
+      mov instructionsBmp, eax
 
       ; Retrieve a handle to the variable stock font.  
       invoke GetStockObject, DEVICE_DEFAULT_FONT
@@ -294,11 +304,11 @@ WinMain proc hInst     :DWORD,
       mov wc.cbClsExtra,     NULL
       mov wc.cbWndExtra,     NULL
       m2m wc.hInstance,      hInst
-      mov wc.hbrBackground,  COLOR_BTNFACE+1
+      mov wc.hbrBackground,  NULL;COLOR_BTNFACE+1
       mov wc.lpszMenuName,  OFFSET MenuName
       mov wc.lpszClassName,  offset szClassName
       m2m wc.hIcon,          hIcon
-        invoke LoadCursor,NULL,IDC_ARROW
+      invoke LoadCursor,NULL,IDC_ARROW
       mov wc.hCursor,        eax
       m2m wc.hIconSm,        hIcon
 
@@ -358,6 +368,12 @@ WinMain proc hInst     :DWORD,
 WinMain endp
 
 ; #########################################################################
+
+RefreshScreenThread PROC
+    invoke Sleep, 1000/24
+    invoke InvalidateRect,hWnd,NULL,TRUE
+    jmp RefreshScreenThread
+RefreshScreenThread ENDP
 
 ; // MARK : UpdateThread
 UpdateThread PROC Param:DWORD
@@ -1121,7 +1137,6 @@ UpdateThread PROC Param:DWORD
         .ENDW
     .endif
 
-    invoke InvalidateRect,hWnd,NULL,TRUE
     jmp UpdateThread
     ret
 UpdateThread ENDP
@@ -1158,8 +1173,10 @@ WndProc proc hWin   :DWORD,
         invoke CreateThread,NULL,NULL, eax,\
 		                    NULL,NORMAL_PRIORITY_CLASS,\
 		                     ADDR UpdateThreadID
-
-
+        
+        invoke CreateThread,NULL,NULL, offset RefreshScreenThread,\
+		                    NULL,NORMAL_PRIORITY_CLASS,\
+		                     ADDR RefreshScreenThreadID
 		
     .elseif uMsg == WM_SIZE
     ;    // obter o tamanho da janela
@@ -1243,23 +1260,30 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
 
     LOCAL hOld:DWORD
     LOCAL memDC :DWORD
+    LOCAL memDC2 :DWORD
+    LOCAL hBmp :DWORD
  
     
     invoke CreateCompatibleDC,hDC
     mov memDC, eax
+    invoke CreateCompatibleDC,hDC
+    mov memDC2, eax
     
-    ;invoke SelectObject,memDC,hBmp
+    invoke CreateCompatibleBitmap, hDC, SCREEN_WIDTH, SCREEN_HEIGHT
+    mov hBmp, eax
+
+    invoke SelectObject,memDC,hBmp
     ;mov hOld, eax
 
     ;invoke SelectObject,hDC,hOld
     
-    invoke SelectObject,memDC,space_backgroundBmp ; select background
-    invoke BitBlt,hDC,0,0,800,600,memDC,0,0,SRCCOPY
+    invoke SelectObject,memDC2,space_backgroundBmp ; select background
+    invoke BitBlt,memDC,0,0,800,600,memDC2,0,0,SRCCOPY
 
     .if up_down
-        invoke SelectObject,memDC,ship_onBmp  ; select ship image
+        invoke SelectObject,memDC2,ship_onBmp  ; select ship image
     .else
-        invoke SelectObject,memDC,shipBmp  ; select ship image
+        invoke SelectObject,memDC2,shipBmp  ; select ship image
     .endif
     ;mov hOld, eax
 
@@ -1271,12 +1295,12 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
 
     ; paint the ship if it's not destroyed
     .IF (!ship_destroyed || showing_ship) && !on_menu
-        invoke TransparentBlt,hDC, \
+        invoke TransparentBlt,memDC, \
         ;paint point
         ship.position.x, ship.position.y, \
         ;ship size
         36,36, \
-        memDC, \
+        memDC2, \
         ;current_sprite
         eax, 0, \
         ;ship size
@@ -1293,12 +1317,12 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
 
             neg ecx
             sub ecx, 36
-            invoke TransparentBlt,hDC, \
+            invoke TransparentBlt,memDC, \
             ;paint point
             SDWORD PTR ecx, ship.position.y, \
             ;ship size
             36,36, \
-            memDC, \
+            memDC2, \
             ;current_sprite
             eax, 0, \
             ;ship size
@@ -1317,12 +1341,12 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
             neg ecx
             sub ecx, 36
 
-            invoke TransparentBlt,hDC, \
+            invoke TransparentBlt,memDC, \
             ;paint point
             ship.position.x, SDWORD PTR ecx, \
             ;ship size
             36,36, \
-            memDC, \
+            memDC2, \
             ;current_sprite
             eax, 0, \
             ;ship size
@@ -1338,22 +1362,22 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
             .IF asteroids[edi].tam > 0
                 .IF asteroids[edi].tam < 4
                     .if asteroids[edi].tam == 1
-                        invoke SelectObject,memDC,asteroid1Bmp
+                        invoke SelectObject,memDC2,asteroid1Bmp
                         mov esi, 40
                     .elseif asteroids[edi].tam == 3
-                        invoke SelectObject,memDC,asteroid3Bmp
+                        invoke SelectObject,memDC2,asteroid3Bmp
                         mov esi, 10
                     .elseif asteroids[edi].tam == 2
-                        invoke SelectObject,memDC,asteroid2Bmp
+                        invoke SelectObject,memDC2,asteroid2Bmp
                         mov esi, 20
                     .endif
 
-                    invoke TransparentBlt,hDC, \
+                    invoke TransparentBlt,memDC, \
                     ;paint point
                     asteroids[edi].position.x, asteroids[edi].position.y, \
                     ;asteroid size
                     esi, esi, \
-                    memDC, \
+                    memDC2, \
                     ;current_sprite
                     0, 0, \
                     ;asteroid size
@@ -1362,45 +1386,42 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
                     CREF_TRANSPARENT
 
                     mov ecx, SCREEN_WIDTH
-                    sub ecx, ship.position.x
+                    sub ecx, asteroids[edi].position.x
                     sub ecx, esi
                     .IF SDWORD PTR ecx < 0
-                        mov eax, esi
-                        mul shipSpritesIndex
+                        mov eax, asteroids[edi].position.y
                         neg ecx
                         sub ecx, esi
-                        invoke TransparentBlt,hDC, \
+                        invoke TransparentBlt,memDC, \
                         ;paint point
-                        SDWORD PTR ecx, ship.position.y, \
-                        ;ship size
+                        SDWORD PTR ecx, eax, \
+                        ;asteroids[edi] size
                         esi,esi, \
-                        memDC, \
+                        memDC2, \
                         ;current_sprite
-                        eax, 0, \
-                        ;ship size
+                        0, 0, \
+                        ;asteroids[edi] size
                         esi,esi, \
                         ;color to be ignored
                         CREF_TRANSPARENT
                     .ENDIF
 
                     mov ecx, SCREEN_HEIGHT
-                    sub ecx, ship.position.y
+                    sub ecx, asteroids[edi].position.y
                     sub ecx, esi
                     .IF SDWORD PTR ecx < 0
-                        mov eax, esi
-                        mul shipSpritesIndex
-
+                        mov eax, asteroids[edi].position.x
                         neg ecx
                         sub ecx, esi
-                        invoke TransparentBlt,hDC, \
+                        invoke TransparentBlt,memDC, \
                         ;paint point
-                        ship.position.x, SDWORD PTR ecx, \
-                        ;ship size
+                        eax, SDWORD PTR ecx, \
+                        ;asteroids[edi] size
                         esi,esi, \
-                        memDC, \
+                        memDC2, \
                         ;current_sprite
                         eax, 0, \
-                        ;ship size
+                        ;asteroids[edi] size
                         esi,esi, \
                         ;color to be ignored
                         CREF_TRANSPARENT
@@ -1411,17 +1432,17 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         .ENDW
     .endif
 
-    invoke SelectObject,memDC,projectileBmp ; select projectile image
+    invoke SelectObject,memDC2,projectileBmp ; select projectile image
     mov edi, 0
     .WHILE edi < 30 * sizeof BODY
         .IF shipProjectiles[edi].acceleration.x != -1
             ; paint the ship
-            invoke TransparentBlt,hDC, \
+            invoke TransparentBlt,memDC, \
             ;paint point
             shipProjectiles[edi].position.x, shipProjectiles[edi].position.y, \
             ;proj size
             5,5, \
-            memDC, \
+            memDC2, \
             ;current_sprite
             0, 0, \
             ;proj size
@@ -1433,7 +1454,7 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     .ENDW
 
     ; explosions
-    invoke SelectObject, memDC, explosionBmp
+    invoke SelectObject, memDC2, explosionBmp
 
     mov esi, 0
     .WHILE esi < EXPLOSIONS_MAX * sizeof EXPLOSION
@@ -1443,12 +1464,12 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
             mul explosions[esi].frame
 
 
-            invoke TransparentBlt,hDC, \
+            invoke TransparentBlt,memDC, \
             ;paint point
             explosions[esi].position.x, explosions[esi].position.y, \
             ;explosion size
             EXPLOSION_FRAME_SIZE,EXPLOSION_FRAME_SIZE, \
-            memDC, \
+            memDC2, \
             ;current_sprite
             eax, 0, \
             ;explosion size
@@ -1469,10 +1490,10 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     .ENDW
     
     invoke wsprintfA, ADDR buffer, ADDR format_number_of_lives, player_lives
-    invoke ExtTextOutA, hDC,0, 0, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+    invoke ExtTextOutA, memDC,0, 0, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
 
     invoke wsprintfA, ADDR buffer, ADDR format_pointer, points
-    invoke ExtTextOutA, hDC,0, 16, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+    invoke ExtTextOutA, memDC,0, 16, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
 
 
     ; debug
@@ -1481,14 +1502,14 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     invoke SelectObject, memDC, hFont
 
     .if creating_asteroids
-        invoke SelectObject,memDC,prepareBmp
+        invoke SelectObject,memDC2,prepareBmp
         ; paint the ship
-        invoke TransparentBlt,hDC, \
+        invoke TransparentBlt,memDC, \
         ;paint point
         400 - 254/2, 80, \
         ;proj size
         254,32, \
-        memDC, \
+        memDC2, \
         ;current_sprite
         0, 0, \
         ;proj size
@@ -1498,14 +1519,14 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     .endif
 
     .if on_menu
-        invoke SelectObject,memDC,titleBmp
+        invoke SelectObject,memDC2,titleBmp
         ; paint the ship
-        invoke TransparentBlt,hDC, \
+        invoke TransparentBlt,memDC, \
         ;paint point
         400 - 425/2, 240, \
         ;proj size
         425,32, \
-        memDC, \
+        memDC2, \
         ;current_sprite
         0, 0, \
         ;proj size
@@ -1513,14 +1534,29 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         ;color to be ignored
         CREF_TRANSPARENT
 
-        invoke SelectObject,memDC,aperte_enterBmp
+        invoke SelectObject,memDC2,instructionsBmp
         ; paint the ship
-        invoke TransparentBlt,hDC, \
+        invoke TransparentBlt,memDC, \
+        ;paint point
+        SCREEN_WIDTH/2 - 632/2, SCREEN_HEIGHT-100 - 27/2, \
+        ;proj size
+        392,28, \
+        memDC2, \
+        ;current_sprite
+        0, 0, \
+        ;proj size
+        392,28, \
+        ;color to be ignored
+        CREF_TRANSPARENT
+
+        invoke SelectObject,memDC2,aperte_enterBmp
+        ; paint the ship
+        invoke TransparentBlt,memDC, \
         ;paint point
         400 - 392/2, 400, \
         ;proj size
         392,28, \
-        memDC, \
+        memDC2, \
         ;current_sprite
         0, 0, \
         ;proj size
@@ -1530,14 +1566,14 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     .endif
 
     .if game_over
-        invoke SelectObject,memDC,aperte_enterBmp
+        invoke SelectObject,memDC2,aperte_enterBmp
         ; paint the ship
-        invoke TransparentBlt,hDC, \
+        invoke TransparentBlt,memDC, \
         ;paint point
         400 - 392/2, 400, \
         ;proj size
         392,28, \
-        memDC, \
+        memDC2, \
         ;current_sprite
         0, 0, \
         ;proj size
@@ -1545,14 +1581,14 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
         ;color to be ignored
         CREF_TRANSPARENT
 
-        invoke SelectObject,memDC,game_overBmp
+        invoke SelectObject,memDC2,game_overBmp
         ; paint the ship
-        invoke TransparentBlt,hDC, \
+        invoke TransparentBlt,memDC, \
         ;paint point
         400 - 240/2, 300 - 32, \
         ;proj size
         239,32, \
-        memDC, \
+        memDC2, \
         ;current_sprite
         0, 0, \
         ;proj size
@@ -1570,16 +1606,19 @@ Paint_Proc proc hWin:DWORD, hDC:DWORD
     ;    neg edi
     ;    add edi, SCREEN_WIDTH - 36
     ;    invoke wsprintfA, ADDR buffer, ADDR header_format, ship.position.x, esi, ship.position.y, edi
-    ;    invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
-    ;    ;invoke TextOutA, hDC, 100, 100, ADDR buffer, eax
+    ;    invoke ExtTextOutA, memDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+    ;    ;invoke TextOutA, memDC, 100, 100, ADDR buffer, eax
     ;.ELSE
     ;    invoke wsprintfA, ADDR buffer, ADDR header_format_ship_destroyed
-    ;    invoke ExtTextOutA, hDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
+    ;    invoke ExtTextOutA, memDC,100, 100, ETO_CLIPPED, NULL, ADDR buffer, eax, NULL
     ;.ENDIF
 
+    ;invoke BitBlt, memDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, memDC2, 0, 0, SRCCOPY
+    invoke BitBlt, hDC, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, memDC, 0, 0, SRCCOPY
+    invoke DeleteDC,memDC2
+    invoke DeleteObject,hBmp
     invoke DeleteDC,memDC
     return 0
-
 Paint_Proc endp
 
 
