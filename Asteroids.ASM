@@ -135,9 +135,8 @@ CREF_TRANSPARENT2 EQU 0FF0000h
   error_string db "Error loading image",0
   strEqualNegativeOne db "Not equal to negative one",0
   buffer db 300 dup(?)
-  format_number_of_lives db "Lives: %d",0
-  format_pointer db "Points: %d",0
-  format_pos db "xNave: %d x+wNave:%d",0
+  format_number_of_lives db "Vidas: %d",0
+  format_pointer db "Pontos: %d",0
 
   EventStop BOOL FALSE
 ; #########################################################################
@@ -475,7 +474,7 @@ UpdateThread PROC Param:DWORD
     .endif
 
     ; // TODO: projectiles pass to other side of screen
-    ; // TODO: image of ship with engine on (Fuka working on it)
+    ; // TODO: image of ship with engine on (Fuka working on it) --- check
     ; // TODO: fix projectile collision with asteroid --- check
     ; // TODO: initial screen --- check
     ; // TODO: If lives gets to 0, gameover screen --- check
@@ -1013,23 +1012,21 @@ UpdateThread PROC Param:DWORD
                 .WHILE ecx != sizeof BODY * 30
                     mov ebx, asteroids[edi].position.x
                     add ebx, esi
-                    add ebx, -4
                     ; check collision only if projectile is alive
                     .IF shipProjectiles[ecx].acceleration.x != -1
                         mov eax, shipProjectiles[ecx].position.x
                         .IF SDWORD PTR ebx > SDWORD PTR eax
                             mov ebx, asteroids[edi].position.x
                             mov eax, shipProjectiles[ecx].position.x
-                            add eax, 32
+                            add eax, esi
                             .IF SDWORD PTR ebx < SDWORD PTR eax
                                 mov ebx, asteroids[edi].position.y
                                 add ebx, esi
-                                add ebx, -4
                                 mov eax, shipProjectiles[ecx].position.y
                                 .IF SDWORD PTR ebx > SDWORD PTR eax
                                     mov ebx, asteroids[edi].position.y
                                     mov eax, shipProjectiles[ecx].position.y
-                                    add eax, 32
+                                    add eax, esi
                                     .IF SDWORD PTR ebx < SDWORD PTR eax
                                         mov eax, asteroids[edi].tam
                                         add points, eax
